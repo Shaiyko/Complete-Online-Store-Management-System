@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { Product, Category, Supplier } from '../types';
 import SearchFilters from '../components/SearchFilters';
+import EnhancedProductCard from '../components/EnhancedProductCard';
 import { 
   Plus, 
   Edit2, 
@@ -285,75 +286,14 @@ const Products: React.FC = () => {
       <SearchFilters onSearch={handleSearch} categories={categories} />
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {products.map((product) => (
-          <div key={product.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-            <img
-              src={product.imageUrl}
-              alt={product.name}
-              className="w-full h-48 object-cover"
-            />
-            <div className="p-4">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-                {product.stock === 0 && (
-                  <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
-                )}
-              </div>
-              <p className="text-sm text-gray-600 mb-2">{product.category}</p>
-              <p className="text-lg font-bold text-blue-600 mb-2">
-                ฿{product.price.toLocaleString()}
-              </p>
-              
-              {/* Rating */}
-              <div className="flex items-center mb-2">
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < Math.floor(product.rating || 0)
-                          ? 'text-yellow-400 fill-current'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="text-sm text-gray-600 ml-2">
-                  ({product.reviews || 0})
-                </span>
-              </div>
-              
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm text-gray-600">Stock: {product.stock}</span>
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  product.stock > 10 
-                    ? 'bg-green-100 text-green-800' 
-                    : product.stock > 0 
-                    ? 'bg-yellow-100 text-yellow-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {product.stock > 10 ? 'In Stock' : product.stock > 0 ? 'Low Stock' : 'Out of Stock'}
-                </span>
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setEditingProduct(product)}
-                  className="flex-1 bg-blue-100 text-blue-700 py-2 px-3 rounded-md hover:bg-blue-200 transition-colors flex items-center justify-center space-x-1"
-                >
-                  <Edit2 className="h-4 w-4" />
-                  <span>Edit</span>
-                </button>
-                <button
-                  onClick={() => handleDelete(product.id)}
-                  className="flex-1 bg-red-100 text-red-700 py-2 px-3 rounded-md hover:bg-red-200 transition-colors flex items-center justify-center space-x-1"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>Delete</span>
-                </button>
-              </div>
-            </div>
-          </div>
+          <EnhancedProductCard
+            key={product.id}
+            product={product}
+            onViewDetails={() => setEditingProduct(product)}
+            showActions={false}
+          />
         ))}
       </div>
 

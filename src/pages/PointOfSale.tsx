@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { Product, CartItem, Member } from '../types';
 import StripePayment from '../components/StripePayment';
+import EnhancedProductCard from '../components/EnhancedProductCard';
 import { 
   ShoppingCart, 
   Plus, 
@@ -453,28 +454,14 @@ const PointOfSale: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredProducts.map((product) => (
-                <div
+                <EnhancedProductCard
                   key={product.id}
-                  onClick={() => addToCart(product)}
-                  className={`bg-white rounded-lg shadow-md p-4 cursor-pointer transition-transform hover:scale-105 ${
-                    product.stock === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                >
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="w-full h-24 object-cover rounded-md mb-2"
-                  />
-                  <h3 className="font-semibold text-sm text-gray-900 truncate">
-                    {product.name}
-                  </h3>
-                  <p className="text-lg font-bold text-blue-600">
-                    ฿{product.price.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500">Stock: {product.stock}</p>
-                </div>
+                  product={product}
+                  onAddToCart={addToCart}
+                  compact={true}
+                />
               ))}
             </div>
           )}
