@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { Product, CartItem, Member } from '../types';
 import StripePayment from '../components/StripePayment';
+import CashPaymentModal from '../components/CashPaymentModal';
+import InvoiceGenerator from '../components/InvoiceGenerator';
 import EnhancedProductCard from '../components/EnhancedProductCard';
 import { 
   ShoppingCart, 
@@ -27,6 +29,9 @@ const PointOfSale: React.FC = () => {
   const [pointsToUse, setPointsToUse] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank_transfer' | 'promptpay' | 'card'>('cash');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showCashModal, setShowCashModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [completedSale, setCompletedSale] = useState<any>(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -157,7 +162,7 @@ const PointOfSale: React.FC = () => {
   const pointsDiscount = pointsToUse * 1; // 1 point = 1 THB
   const total = subtotal - discount - pointsDiscount;
 
-  const processSale = async () => {
+  const processSale = async (cashReceived?: number, change?: number) => {
     if (cart.length === 0) return;
     
     setProcessing(true);
@@ -179,7 +184,15 @@ const PointOfSale: React.FC = () => {
         pointsUsed: pointsToUse
       };
 
-      await apiService.createSale(saleData);
+      const completedSaleData = await apiService.createSale(saleData);
+      
+      // Add cash payment details if applicable
+      if (paymentMethod === 'cash' && cashReceived !== undefined) {
+        completedSaleData.cashReceived = cashReceived;
+        completedSaleData.change = change;
+      }
+      
+      setCompletedSale(completedSaleData);
       
       // Reset cart and state
       setCart([]);
@@ -188,8 +201,10 @@ const PointOfSale: React.FC = () => {
       setSelectedMember(null);
       setMemberPhone('');
       setShowPaymentModal(false);
+      setShowCashModal(false);
       
-      alert('Sale completed successfully!');
+      // Show invoice modal
+      setShowInvoiceModal(true);
       
       // Refresh products to update stock
       fetchProducts();
@@ -198,6 +213,11 @@ const PointOfSale: React.FC = () => {
     } finally {
       setProcessing(false);
     }
+  };
+
+  const handleCashPayment = (cashReceived: number, change: number) => {
+    setShowCashModal(false);
+    processSale(cashReceived, change);
   };
 
   // เพิ่ม safety check สำหรับ filteredProducts
@@ -320,6 +340,24 @@ const PointOfSale: React.FC = () => {
                 <button
                   onClick={() => setShowPaymentModal(false)}
                   className="w-full mt-3 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : paymentMethod === 'cash' ? (
+              <div className="flex space-x-3 pt-4">
+                <button
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setShowCashModal(true);
+                  }}
+                  className="flex-1 bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 transition-colors"
+                >
+                  Enter Cash Amount
+                </button>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-md hover:bg-gray-400 transition-colors"
                 >
                   Cancel
                 </button>
@@ -617,6 +655,19 @@ const PointOfSale: React.FC = () => {
 
       {/* Modals */}
       {showPaymentModal && <PaymentModal />}
+      {showCashModal && (
+        <CashPaymentModal
+          total={total}
+          onComplete={handleCashPayment}
+          onCancel={() => setShowCashModal(false)}
+        />
+      )}
+      {showInvoiceModal && completedSale && (
+        <InvoiceGenerator
+          sale={completedSale}
+          onClose={() => setShowInvoiceModal(false)}
+        />
+      )}
       {showMemberModal && <MemberModal />}
     </div>
   );

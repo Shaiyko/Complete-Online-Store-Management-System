@@ -3,13 +3,15 @@ import { apiService } from '../services/api';
 import { Product, Category, Supplier } from '../types';
 import SearchFilters from '../components/SearchFilters';
 import EnhancedProductCard from '../components/EnhancedProductCard';
+import StockInDocument from '../components/StockInDocument';
 import { 
   Plus, 
   Edit2, 
   Trash2, 
   Package,
   AlertTriangle,
-  Star
+  Star,
+  FileText
 } from 'lucide-react';
 
 const Products: React.FC = () => {
@@ -19,6 +21,7 @@ const Products: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showStockInModal, setShowStockInModal] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -71,6 +74,33 @@ const Products: React.FC = () => {
       } catch (error) {
         console.error('Delete failed:', error);
       }
+    }
+  };
+
+  const handleStockInSave = async (document: any) => {
+    try {
+      // In a real app, this would save to the backend
+      console.log('Stock in document:', document);
+      
+      if (document.status === 'completed') {
+        // Update product stock
+        document.items.forEach((item: any) => {
+          const productIndex = products.findIndex(p => p.id === item.productId);
+          if (productIndex !== -1) {
+            products[productIndex].stock += item.quantity;
+          }
+        });
+        
+        alert('Stock updated successfully!');
+      } else {
+        alert('Stock in document saved as draft!');
+      }
+      
+      setShowStockInModal(false);
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error('Failed to save stock in document:', error);
+      alert('Failed to save stock in document');
     }
   };
 
@@ -273,13 +303,22 @@ const Products: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Add Product</span>
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setShowStockInModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
+          >
+            <FileText className="h-5 w-5" />
+            <span>Stock In</span>
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
+            <Plus className="h-5 w-5" />
+            <span>Add Product</span>
+          </button>
+        </div>
       </div>
 
       {/* Enhanced Search and Filters */}
@@ -337,6 +376,12 @@ const Products: React.FC = () => {
         <ProductModal
           product={editingProduct}
           onClose={() => setEditingProduct(null)}
+        />
+      )}
+      {showStockInModal && (
+        <StockInDocument
+          onClose={() => setShowStockInModal(false)}
+          onSave={handleStockInSave}
         />
       )}
     </div>

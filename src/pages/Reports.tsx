@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
 import StockLedger from '../components/StockLedger';
+import AdvancedReporting from '../components/AdvancedReporting';
 import { 
   BarChart, 
   Bar, 
@@ -61,8 +62,9 @@ const Reports: React.FC = () => {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: BarChart3 },
+    { id: 'advanced', name: 'Advanced Reports', icon: TrendingUp },
     { id: 'stock-ledger', name: 'Stock Ledger', icon: Package },
-    { id: 'analytics', name: 'Analytics', icon: TrendingUp }
+    { id: 'analytics', name: 'Analytics', icon: BarChart3 }
   ];
 
   // Mock data for charts
@@ -341,6 +343,10 @@ const Reports: React.FC = () => {
         )}
       </div>
         </>
+      )}
+
+      {activeTab === 'advanced' && (
+        <AdvancedReporting />
       )}
 
       {activeTab === 'stock-ledger' && (

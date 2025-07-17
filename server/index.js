@@ -242,6 +242,8 @@ let sales = [
     memberPhone: '0812345678',
     pointsUsed: 0,
     pointsEarned: 6490,
+    cashReceived: 130000,
+    change: 200,
     createdAt: new Date('2024-01-20')
   },
   {
@@ -263,6 +265,10 @@ let sales = [
     createdAt: new Date('2024-01-19')
   }
 ];
+
+let stockInDocuments = [];
+
+let dailySalesLog = [];
 
 let stockLedger = [
   {
@@ -564,7 +570,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
 
 // Enhanced Sales Route with Real-time Updates
 app.post('/api/sales', authenticateToken, (req, res) => {
-  const { items, subtotal, discount, total, paymentMethod, memberId, memberPhone, pointsUsed } = req.body;
+  const { items, subtotal, discount, total, paymentMethod, memberId, memberPhone, pointsUsed, cashReceived, change } = req.body;
   
   const newSale = {
     id: uuidv4(),
@@ -580,6 +586,8 @@ app.post('/api/sales', authenticateToken, (req, res) => {
     memberPhone,
     pointsUsed,
     pointsEarned: Math.floor(total / 20),
+    cashReceived,
+    change,
     createdAt: new Date()
   };
 
@@ -626,6 +634,29 @@ app.post('/api/sales', authenticateToken, (req, res) => {
   }
 
   sales.push(newSale);
+  
+  // Add to daily sales log
+  const today = new Date().toISOString().split('T')[0];
+  const existingLog = dailySalesLog.find(log => 
+    log.date === today && log.employeeId === req.user.id
+  );
+  
+  if (existingLog) {
+    existingLog.transactions.push(newSale);
+    existingLog.totalSales += total;
+    existingLog.transactionCount += 1;
+  } else {
+    dailySalesLog.push({
+      id: uuidv4(),
+      date: today,
+      employeeId: req.user.id,
+      employeeName: req.user.username,
+      transactions: [newSale],
+      totalSales: total,
+      transactionCount: 1,
+      workingHours: 8 // Default, could be tracked separately
+    });
+  }
   
   // Broadcast new sale
   broadcastNewSale(newSale);
@@ -780,6 +811,64 @@ app.get('/api/sales', authenticateToken, (req, res) => {
   res.json(sales);
 });
 
+// Stock In Documents Routes
+app.get('/api/stock-in', authenticateToken, authorize(['owner', 'admin']), (req, res) => {
+  res.json(stockInDocuments);
+});
+
+app.post('/api/stock-in', authenticateToken, authorize(['owner', 'admin']), (req, res) => {
+  const stockInDoc = {
+    id: uuidv4(),
+    ...req.body,
+    createdBy: req.user.id,
+    createdAt: new Date()
+  };
+  
+  stockInDocuments.push(stockInDoc);
+  
+  // If completed, update product stock
+  if (stockInDoc.status === 'completed') {
+    stockInDoc.items.forEach(item => {
+      const productIndex = products.findIndex(p => p.id === item.productId);
+      if (productIndex !== -1) {
+        products[productIndex].stock += item.quantity;
+        
+        // Add to stock ledger
+        stockLedger.push({
+          id: uuidv4(),
+          productId: item.productId,
+          type: 'purchase',
+          quantity: item.quantity,
+          balance: products[productIndex].stock,
+          reference: stockInDoc.documentNumber,
+          createdAt: new Date()
+        });
+        
+        // Broadcast inventory update
+        broadcastInventoryUpdate(item.productId, products[productIndex].stock);
+      }
+    });
+  }
+  
+  res.status(201).json(stockInDoc);
+});
+
+// Daily Sales Log Routes
+app.get('/api/daily-sales-log', authenticateToken, authorize(['owner', 'admin']), (req, res) => {
+  const { startDate, endDate } = req.query;
+  
+  let filteredLogs = dailySalesLog;
+  
+  if (startDate && endDate) {
+    filteredLogs = dailySalesLog.filter(log => {
+      const logDate = new Date(log.date);
+      return logDate >= new Date(startDate) && logDate <= new Date(endDate);
+    });
+  }
+  
+  res.json(filteredLogs);
+});
+
 // Reports Routes
 app.get('/api/reports/sales', authenticateToken, authorize(['owner', 'admin']), (req, res) => {
   const { startDate, endDate } = req.query;
@@ -806,6 +895,80 @@ app.get('/api/reports/sales', authenticateToken, authorize(['owner', 'admin']), 
       totalSales,
       averageOrderValue
     }
+  });
+});
+
+app.get('/api/reports/advanced', authenticateToken, authorize(['owner', 'admin']), (req, res) => {
+  const { startDate, endDate } = req.query;
+  
+  let filteredSales = sales;
+  let filteredLogs = dailySalesLog;
+  
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    filteredSales = sales.filter(sale => {
+      const saleDate = new Date(sale.createdAt);
+      return saleDate >= start && saleDate <= end;
+    });
+    
+    filteredLogs = dailySalesLog.filter(log => {
+      const logDate = new Date(log.date);
+      return logDate >= start && logDate <= end;
+    });
+  }
+  
+  // Calculate employee stats
+  const employeeStats = filteredLogs.map(log => ({
+    id: log.employeeId,
+    name: log.employeeName,
+    role: users.find(u => u.id === log.employeeId)?.role || 'unknown',
+    workingHours: log.workingHours,
+    totalSales: log.totalSales,
+    transactionCount: log.transactionCount,
+    averageTransaction: log.totalSales / log.transactionCount
+  }));
+  
+  // Calculate best selling items
+  const itemSales = {};
+  filteredSales.forEach(sale => {
+    sale.items.forEach(item => {
+      if (!itemSales[item.productId]) {
+        itemSales[item.productId] = {
+          productId: item.productId,
+          productName: item.name,
+          quantitySold: 0,
+          revenue: 0,
+          category: products.find(p => p.id === item.productId)?.category || 'unknown'
+        };
+      }
+      itemSales[item.productId].quantitySold += item.quantity;
+      itemSales[item.productId].revenue += item.price * item.quantity;
+    });
+  });
+  
+  const bestSellingItems = Object.values(itemSales)
+    .sort((a, b) => b.quantitySold - a.quantitySold)
+    .slice(0, 10);
+  
+  // Calculate peak hours (mock data for now)
+  const peakHours = Array.from({ length: 12 }, (_, i) => ({
+    hour: `${9 + i}:00`,
+    sales: Math.floor(Math.random() * 50000) + 20000,
+    transactions: Math.floor(Math.random() * 15) + 5
+  }));
+  
+  res.json({
+    employeeStats,
+    bestSellingItems,
+    peakHours,
+    salesData: filteredLogs.map(log => ({
+      date: log.date,
+      sales: log.totalSales,
+      transactions: log.transactionCount,
+      employee: log.employeeName
+    }))
   });
 });
 
