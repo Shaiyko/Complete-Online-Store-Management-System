@@ -1,3 +1,101 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* QR Scanner specific styles */
+@layer utilities {
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .mobile-optimized {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Improve button touch targets on mobile */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Optimize input fields for mobile */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"] {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}
+
+/* Camera access styles */
+.camera-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.camera-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.scan-frame {
+  width: 250px;
+  height: 250px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  position: relative;
+}
+
+.scan-corners {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+}
+
+.scan-corners::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  background: #3b82f6;
+}
+
+.scan-corners::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 100%;
+  background: #3b82f6;
+}
+
+/* Scanning animation */
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(250px); }
+}
+
+.scan-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+  animation: scan-line 2s linear infinite;
+}

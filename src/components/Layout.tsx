@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import RealTimeNotifications from './RealTimeNotifications';
 import PWAInstallPrompt from './PWAInstallPrompt';
+import ConnectionStatus from './ConnectionStatus';
 import { 
   Home, 
   Package, 
@@ -104,6 +105,7 @@ const Layout: React.FC = () => {
         {/* Top bar with notifications */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex justify-end">
+            <ConnectionStatus />
             <RealTimeNotifications />
           </div>
         </div>

@@ -3,19 +3,54 @@ const API_BASE_URL = '/api';
 class ApiService {
   private token: string | null = null;
   private socket: any = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
 
   constructor() {
     this.token = localStorage.getItem('token');
     this.initializeSocket();
+    this.setupConnectionMonitoring();
   }
 
+  private setupConnectionMonitoring() {
+    // Monitor online/offline status
+    window.addEventListener('online', () => {
+      console.log('Connection restored');
+      this.reconnectAttempts = 0;
+      this.initializeSocket();
+    });
+
+    window.addEventListener('offline', () => {
+      console.log('Connection lost');
+    });
+  }
   private initializeSocket() {
     if (typeof window !== 'undefined') {
       import('socket.io-client').then(({ io }) => {
-        this.socket = io();
+        this.socket = io({
+          reconnection: true,
+          reconnectionAttempts: this.maxReconnectAttempts,
+          reconnectionDelay: this.reconnectDelay,
+          timeout: 10000,
+        });
         
         this.socket.on('connect', () => {
           console.log('Connected to server');
+          this.reconnectAttempts = 0;
+        });
+
+        this.socket.on('disconnect', (reason: string) => {
+          console.log('Disconnected from server:', reason);
+          if (reason === 'io server disconnect') {
+            // Server disconnected, try to reconnect
+            this.handleReconnection();
+          }
+        });
+
+        this.socket.on('connect_error', (error: any) => {
+          console.error('Connection error:', error);
+          this.handleReconnection();
         });
         
         this.socket.on('inventory-update', (data: any) => {
@@ -37,9 +72,28 @@ class ApiService {
     }
   }
 
+  private handleReconnection() {
+    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      this.reconnectAttempts++;
+      const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+      
+      console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
+      
+      setTimeout(() => {
+        this.initializeSocket();
+      }, delay);
+    } else {
+      console.error('Max reconnection attempts reached');
+      // Show user notification about connection issues
+      window.dispatchEvent(new CustomEvent('connection-error', { 
+        detail: { message: 'Connection lost. Please refresh the page.' }
+      }));
+    }
+  }
   getSocket() {
     return this.socket;
   }
+
   setToken(token: string) {
     this.token = token;
     localStorage.setItem('token', token);
@@ -58,37 +112,69 @@ class ApiService {
       ...options.headers,
     };
 
-    try {
-      const response = await fetch(url, { ...options, headers });
-      
-      // Check if response has content before parsing JSON
-      const contentType = response.headers.get('content-type');
-      const hasJsonContent = contentType && contentType.includes('application/json');
-      
-      if (!response.ok) {
-        let errorMessage = 'Request failed';
-        if (hasJsonContent) {
-          try {
-            const error = await response.json();
-            errorMessage = error.error || errorMessage;
-          } catch {
-            // If JSON parsing fails, use default message
-          }
-        }
-        throw new Error(errorMessage);
-      }
+    // Add retry logic for failed requests
+    const maxRetries = 3;
+    let retryCount = 0;
 
-      // Only parse JSON if response has JSON content
-      if (hasJsonContent) {
-        return await response.json();
-      } else {
-        // Return empty object for non-JSON responses
-        return {} as T;
+    while (retryCount < maxRetries) {
+    try {
+        const response = await fetch(url, { 
+          ...options, 
+          headers,
+          timeout: 10000 // 10 second timeout
+        });
+      
+        // Check if response has content before parsing JSON
+        const contentType = response.headers.get('content-type');
+        const hasJsonContent = contentType && contentType.includes('application/json');
+      
+        if (!response.ok) {
+          let errorMessage = 'Request failed';
+          if (hasJsonContent) {
+            try {
+              const error = await response.json();
+              errorMessage = error.error || errorMessage;
+            } catch {
+              // If JSON parsing fails, use default message
+            }
+          }
+          
+          // If it's a server error (5xx) and we haven't exhausted retries, try again
+          if (response.status >= 500 && retryCount < maxRetries - 1) {
+            retryCount++;
+            console.log(`Request failed with ${response.status}, retrying (${retryCount}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+            continue;
+          }
+          
+          throw new Error(errorMessage);
+        }
+
+        // Only parse JSON if response has JSON content
+        if (hasJsonContent) {
+          return await response.json();
+        } else {
+          // Return empty object for non-JSON responses
+          return {} as T;
+        }
+      } catch (error) {
+        // If it's a network error and we haven't exhausted retries, try again
+        if (retryCount < maxRetries - 1 && (
+          error instanceof TypeError || // Network error
+          (error as any).name === 'AbortError' // Timeout
+        )) {
+          retryCount++;
+          console.log(`Network error, retrying (${retryCount}/${maxRetries})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          continue;
+        }
+        
+        console.error('API request failed:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
     }
+    
+    throw new Error('Max retries exceeded');
   }
 
   // Auth

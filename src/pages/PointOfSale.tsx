@@ -5,6 +5,7 @@ import StripePayment from '../components/StripePayment';
 import CashPaymentModal from '../components/CashPaymentModal';
 import InvoiceGenerator from '../components/InvoiceGenerator';
 import EnhancedProductCard from '../components/EnhancedProductCard';
+import QRScanner from '../components/QRScanner';
 import { 
   ShoppingCart, 
   Plus, 
@@ -15,7 +16,8 @@ import {
   Smartphone,
   Banknote,
   User,
-  Gift
+  Gift,
+  QrCode
 } from 'lucide-react';
 import QRCode from 'react-qr-code';
 
@@ -33,6 +35,7 @@ const PointOfSale: React.FC = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [completedSale, setCompletedSale] = useState<any>(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -133,6 +136,54 @@ const PointOfSale: React.FC = () => {
             : item
         ));
       }
+    }
+  };
+
+  const handleQRScan = async (qrData: string) => {
+    setShowQRScanner(false);
+    
+    try {
+      // Extract product ID from QR code
+      let productId = '';
+      
+      try {
+        const parsed = JSON.parse(qrData);
+        productId = parsed.productId || parsed.id;
+      } catch {
+        // If not JSON, treat as direct product ID or QR code
+        productId = qrData.replace(/^PROD-/, ''); // Remove PROD- prefix if exists
+      }
+
+      // Find product by ID, QR code, or barcode
+      const product = products.find(p => 
+        p.id === productId || 
+        p.qrCode === qrData ||
+        p.barcode === qrData
+      );
+
+      if (product) {
+        addToCart(product);
+        // Show success feedback
+        const productName = product.name.length > 20 
+          ? product.name.substring(0, 20) + '...' 
+          : product.name;
+        
+        // Create a temporary notification
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50 transition-all duration-300';
+        notification.textContent = `Added ${productName} to cart`;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          notification.style.opacity = '0';
+          setTimeout(() => document.body.removeChild(notification), 300);
+        }, 2000);
+      } else {
+        alert(`Product not found for QR code: ${qrData}`);
+      }
+    } catch (error) {
+      console.error('QR scan error:', error);
+      alert('Failed to process QR code');
     }
   };
 
@@ -482,6 +533,13 @@ const PointOfSale: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          <button
+            onClick={() => setShowQRScanner(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          >
+            <QrCode className="h-5 w-5" />
+            <span className="hidden sm:inline">Scan QR</span>
+          </button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4">
@@ -669,6 +727,14 @@ const PointOfSale: React.FC = () => {
         />
       )}
       {showMemberModal && <MemberModal />}
+      {showQRScanner && (
+        <QRScanner
+          isOpen={true}
+          onScan={handleQRScan}
+          onClose={() => setShowQRScanner(false)}
+          title="Scan Product QR Code"
+        />
+      )}
     </div>
   );
 };
