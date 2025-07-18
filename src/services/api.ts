@@ -230,7 +230,7 @@ class ApiService {
   }
 
   async deleteProduct(id: string) {
-    return this.request<any>(`/products/${id}`, {
+    return this.request<void>(`/products/${id}`, {
       method: 'DELETE',
     });
   }

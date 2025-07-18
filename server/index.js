@@ -735,6 +735,7 @@ app.delete('/api/products/:id', authenticateToken, authorize(['owner', 'admin'])
   // Broadcast product deletion
   io.emit('product-deleted', { productId: req.params.id });
   
+  logger.info(`Product deleted: ${deletedProduct.name} by ${req.user.username}`);
   res.json({ message: 'Product deleted successfully' });
 });
 

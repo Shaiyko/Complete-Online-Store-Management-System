@@ -88,14 +88,15 @@ const Products: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
+        setLoading(true);
         await apiService.deleteProduct(id);
-        // Remove from local state immediately for better UX
-        setProducts(prev => prev.filter(p => p.id !== id));
-        // Then refresh to ensure consistency
-        setTimeout(fetchData, 100);
+        await fetchData(); // Refresh data after successful deletion
+        alert('Product deleted successfully!');
       } catch (error) {
         console.error('Delete failed:', error);
         alert('Failed to delete product. Please try again.');
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -145,20 +146,19 @@ const Products: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-        setLoading(true);
+        const submitLoading = true;
         if (product) {
           await apiService.updateProduct(product.id, formData);
+          alert('Product updated successfully!');
         } else {
           await apiService.createProduct(formData);
+          alert('Product created successfully!');
         }
-        // Refresh data after successful operation
         await fetchData();
         onClose();
       } catch (error) {
         console.error('Save failed:', error);
         alert('Failed to save product. Please try again.');
-      } finally {
-        setLoading(false);
       }
     };
 
