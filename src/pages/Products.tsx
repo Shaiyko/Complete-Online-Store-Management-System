@@ -4,6 +4,7 @@ import { Product, Category, Supplier } from '../types';
 import SearchFilters from '../components/SearchFilters';
 import EnhancedProductCard from '../components/EnhancedProductCard';
 import StockInDocument from '../components/StockInDocument';
+import StockInQRScanner from '../components/StockInQRScanner';
 import { 
   Plus, 
   Edit2, 
@@ -11,7 +12,8 @@ import {
   Package,
   AlertTriangle,
   Star,
-  FileText
+  FileText,
+  QrCode
 } from 'lucide-react';
 
 const Products: React.FC = () => {
@@ -22,6 +24,7 @@ const Products: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showStockInModal, setShowStockInModal] = useState(false);
+  const [showQRStockIn, setShowQRStockIn] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -35,13 +38,25 @@ const Products: React.FC = () => {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [productsData, categoriesData, suppliersData] = await Promise.all([
         apiService.getProducts({ page: 1, limit: 20 }),
         apiService.getCategories(),
         apiService.getSuppliers()
       ]);
       
-      setProducts(productsData.products || productsData);
+      // Handle different response formats
+      let productList = [];
+      if (Array.isArray(productsData)) {
+        productList = productsData;
+      } else if (productsData && productsData.products) {
+        productList = productsData.products;
+        setPagination(productsData.pagination || pagination);
+      } else if (productsData && productsData.data) {
+        productList = productsData.data;
+      }
+      
+      setProducts(productList);
       if (productsData.pagination) {
         setPagination(productsData.pagination);
       }
@@ -49,6 +64,10 @@ const Products: React.FC = () => {
       setSuppliers(suppliersData);
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      // Set empty arrays on error to prevent crashes
+      setProducts([]);
+      setCategories([]);
+      setSuppliers([]);
     } finally {
       setLoading(false);
     }
@@ -70,9 +89,13 @@ const Products: React.FC = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         await apiService.deleteProduct(id);
-        fetchData();
+        // Remove from local state immediately for better UX
+        setProducts(prev => prev.filter(p => p.id !== id));
+        // Then refresh to ensure consistency
+        setTimeout(fetchData, 100);
       } catch (error) {
         console.error('Delete failed:', error);
+        alert('Failed to delete product. Please try again.');
       }
     }
   };
@@ -122,15 +145,20 @@ const Products: React.FC = () => {
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
+        setLoading(true);
         if (product) {
           await apiService.updateProduct(product.id, formData);
         } else {
           await apiService.createProduct(formData);
         }
-        fetchData();
+        // Refresh data after successful operation
+        await fetchData();
         onClose();
       } catch (error) {
         console.error('Save failed:', error);
+        alert('Failed to save product. Please try again.');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -305,6 +333,13 @@ const Products: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
         <div className="flex space-x-2">
           <button
+            onClick={() => setShowQRStockIn(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors flex items-center space-x-2"
+          >
+            <QrCode className="h-5 w-5" />
+            <span>QR Stock-In</span>
+          </button>
+          <button
             onClick={() => setShowStockInModal(true)}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors flex items-center space-x-2"
           >
@@ -382,6 +417,12 @@ const Products: React.FC = () => {
         <StockInDocument
           onClose={() => setShowStockInModal(false)}
           onSave={handleStockInSave}
+        />
+      )}
+      {showQRStockIn && (
+        <StockInQRScanner
+          onClose={() => setShowQRStockIn(false)}
+          onStockUpdated={fetchData}
         />
       )}
     </div>
