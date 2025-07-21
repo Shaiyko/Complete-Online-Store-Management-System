@@ -22,7 +22,8 @@ import {
   Package, 
   DollarSign,
   AlertTriangle,
-  FileText
+  FileText,
+  BarChart3
 } from 'lucide-react';
 
 const Reports: React.FC = () => {
@@ -64,7 +65,7 @@ const Reports: React.FC = () => {
     { id: 'overview', name: 'Overview', icon: BarChart3 },
     { id: 'advanced', name: 'Advanced Reports', icon: TrendingUp },
     { id: 'stock-ledger', name: 'Stock Ledger', icon: Package },
-    { id: 'analytics', name: 'Analytics', icon: BarChart3 }
+    { id: 'analytics', name: 'Analytics', icon: BarChart }
   ];
 
   // Mock data for charts
@@ -79,10 +80,10 @@ const Reports: React.FC = () => {
   ];
 
   const categoryData = [
-    { name: 'Electronics', value: 65, color: '#3B82F6' },
-    { name: 'Food', value: 25, color: '#10B981' },
-    { name: 'Clothing', value: 8, color: '#F59E0B' },
-    { name: 'Books', value: 2, color: '#EF4444' }
+    { name: 'อิเล็กทรอนิกส์', value: 65, color: '#3B82F6' },
+    { name: 'อาหาร', value: 25, color: '#10B981' },
+    { name: 'เสื้อผ้า', value: 8, color: '#F59E0B' },
+    { name: 'หนังสือ', value: 2, color: '#EF4444' }
   ];
 
   if (loading) {
@@ -96,10 +97,10 @@ const Reports: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
+        <h1 className="text-2xl font-bold text-gray-900">รายงาน</h1>
         <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2">
           <Download className="h-5 w-5" />
-          <span>Export Reports</span>
+          <span>ส่งออกรายงาน</span>
         </button>
       </div>
 
@@ -136,7 +137,7 @@ const Reports: React.FC = () => {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <Calendar className="h-5 w-5 text-gray-400" />
-            <span className="text-sm font-medium text-gray-700">Date Range:</span>
+            <span className="text-sm font-medium text-gray-700">ช่วงวันที่:</span>
           </div>
           <input
             type="date"
@@ -144,7 +145,7 @@ const Reports: React.FC = () => {
             onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <span className="text-gray-500">to</span>
+          <span className="text-gray-500">ถึง</span>
           <input
             type="date"
             value={dateRange.endDate}
@@ -155,7 +156,7 @@ const Reports: React.FC = () => {
             onClick={handleDateRangeChange}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
           >
-            Apply
+            ใช้งาน
           </button>
         </div>
       </div>
@@ -165,60 +166,60 @@ const Reports: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+              <p className="text-sm font-medium text-gray-600">รายได้รวม</p>
               <p className="text-2xl font-bold text-gray-900">
                 ฿{salesReport?.summary?.totalRevenue?.toLocaleString() || '0'}
               </p>
             </div>
             <DollarSign className="h-8 w-8 text-green-600" />
           </div>
-          <p className="text-sm text-green-600 mt-2">+12.5% from last period</p>
+          <p className="text-sm text-green-600 mt-2">+12.5% จากช่วงก่อน</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Orders</p>
+              <p className="text-sm font-medium text-gray-600">ยอดขายรวม</p>
               <p className="text-2xl font-bold text-gray-900">
                 {salesReport?.summary?.totalSales || 0}
               </p>
             </div>
             <FileText className="h-8 w-8 text-blue-600" />
           </div>
-          <p className="text-sm text-blue-600 mt-2">+8.2% from last period</p>
+          <p className="text-sm text-blue-600 mt-2">+8.2% จากช่วงก่อน</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Average Order</p>
+              <p className="text-sm font-medium text-gray-600">ยอดขายเฉลี่ย</p>
               <p className="text-2xl font-bold text-gray-900">
                 ฿{salesReport?.summary?.averageOrderValue?.toLocaleString() || '0'}
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-purple-600" />
           </div>
-          <p className="text-sm text-purple-600 mt-2">+5.1% from last period</p>
+          <p className="text-sm text-purple-600 mt-2">+5.1% จากช่วงก่อน</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
+              <p className="text-sm font-medium text-gray-600">สินค้าใกล้หมด</p>
               <p className="text-2xl font-bold text-gray-900">
                 {inventoryReport?.lowStockProducts?.length || 0}
               </p>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-600" />
           </div>
-          <p className="text-sm text-red-600 mt-2">Needs attention</p>
+          <p className="text-sm text-red-600 mt-2">ต้องการความสนใจ</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Sales Chart */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Sales</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">ยอดขายรายวัน</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={dailySalesData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -226,14 +227,14 @@ const Reports: React.FC = () => {
               <YAxis />
               <Tooltip />
               <Legend />
-              <Bar dataKey="sales" fill="#3B82F6" name="Sales (฿)" />
+              <Bar dataKey="sales" fill="#3B82F6" name="ยอดขาย (฿)" />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         {/* Category Distribution */}
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Sales by Category</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">ยอดขายตามหมวดหมู่</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
@@ -258,48 +259,48 @@ const Reports: React.FC = () => {
 
       {/* Inventory Report */}
       <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory Status</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">สถานะสินค้าคงคลัง</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
               {inventoryReport?.totalProducts || 0}
             </div>
-            <div className="text-sm text-gray-600">Total Products</div>
+            <div className="text-sm text-gray-600">สินค้าทั้งหมด</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
               ฿{inventoryReport?.totalValue?.toLocaleString() || '0'}
             </div>
-            <div className="text-sm text-gray-600">Total Inventory Value</div>
+            <div className="text-sm text-gray-600">มูลค่าสินค้าคงคลัง</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-red-600">
               {inventoryReport?.outOfStockProducts?.length || 0}
             </div>
-            <div className="text-sm text-gray-600">Out of Stock</div>
+            <div className="text-sm text-gray-600">สินค้าหมด</div>
           </div>
         </div>
 
         {/* Low Stock Products */}
         {inventoryReport?.lowStockProducts?.length > 0 && (
           <div>
-            <h4 className="font-medium text-gray-900 mb-3">Low Stock Products</h4>
+            <h4 className="font-medium text-gray-900 mb-3">สินค้าใกล้หมด</h4>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Product
+                      สินค้า
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Stock
+                      สต็อก
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Category
+                      หมวดหมู่
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Supplier
+                      ซัพพลายเออร์
                     </th>
                   </tr>
                 </thead>
@@ -325,7 +326,7 @@ const Reports: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">
-                          {product.stock}
+                          เหลือ {product.stock}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -355,8 +356,8 @@ const Reports: React.FC = () => {
 
       {activeTab === 'analytics' && (
         <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Advanced Analytics</h3>
-          <p className="text-gray-600">Advanced analytics features coming soon...</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">การวิเคราะห์ขั้นสูง</h3>
+          <p className="text-gray-600">ฟีเจอร์การวิเคราะห์ขั้นสูงกำลังจะมาเร็วๆ นี้...</p>
         </div>
       )}
     </div>
