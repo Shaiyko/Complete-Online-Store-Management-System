@@ -206,6 +206,10 @@ const EnhancedMemberManagement: React.FC = () => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          member.phone.includes(searchTerm) ||
                          member.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesTier = !filterTier || member.tier === filterTier;
+    return matchesSearch && matchesTier;
+  });
+
   const handleEdit = (member: EnhancedMember) => {
     setEditingMember(member);
     setShowAddModal(true);
@@ -316,7 +320,7 @@ const EnhancedMemberManagement: React.FC = () => {
                   placeholder="กรอกชื่อ-นามสกุล"
                 />
               </div>
-    const matchesTier = !filterTier || member.tier === filterTier;
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   เบอร์โทรศัพท์
@@ -330,7 +334,7 @@ const EnhancedMemberManagement: React.FC = () => {
                   placeholder="กรอกเบอร์โทรศัพท์"
                 />
               </div>
-    return matchesSearch && matchesTier;
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   อีเมล
@@ -343,7 +347,7 @@ const EnhancedMemberManagement: React.FC = () => {
                   placeholder="กรอกอีเมล (ไม่บังคับ)"
                 />
               </div>
-  });
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   ที่อยู่
