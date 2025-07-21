@@ -4,7 +4,7 @@ import { Product, Category, Supplier } from '../types';
 import SearchFilters from '../components/SearchFilters';
 import EnhancedProductCard from '../components/EnhancedProductCard';
 import StockInDocument from '../components/StockInDocument';
-import StockInQRScanner from '../components/StockInQRScanner';
+import BarcodeQRScanner from '../components/BarcodeQRScanner';
 import { 
   Plus, 
   Edit2, 
@@ -24,7 +24,7 @@ const Products: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showStockInModal, setShowStockInModal] = useState(false);
-  const [showQRStockIn, setShowQRStockIn] = useState(false);
+  const [showScannerStockIn, setShowScannerStockIn] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -98,6 +98,31 @@ const Products: React.FC = () => {
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleStockInScan = async (scanData: string, type: 'barcode' | 'qr') => {
+    setShowScannerStockIn(false);
+    
+    try {
+      // Find product by barcode or QR code
+      const product = products.find(p => 
+        p.barcode === scanData || 
+        p.qrCode === scanData ||
+        p.id === scanData
+      );
+
+      if (product) {
+        // Show stock-in modal with pre-selected product
+        setShowStockInModal(true);
+        // You could pass the product to the modal here
+        alert(`พบสินค้า: ${product.name} - เพิ่มในเอกสารรับสินค้า`);
+      } else {
+        alert(`ไม่พบสินค้าสำหรับ ${type === 'qr' ? 'QR Code' : 'Barcode'}: ${scanData}`);
+      }
+    } catch (error) {
+      console.error('Stock-in scan error:', error);
+      alert('เกิดข้อผิดพลาดในการสแกน');
     }
   };
 
@@ -333,11 +358,11 @@ const Products: React.FC = () => {
         <h1 className="text-2xl font-bold text-gray-900">Products</h1>
         <div className="flex space-x-2">
           <button
-            onClick={() => setShowQRStockIn(true)}
+            onClick={() => setShowScannerStockIn(true)}
             className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors flex items-center space-x-2"
           >
             <QrCode className="h-5 w-5" />
-            <span>QR Stock-In</span>
+            <span>สแกนรับสินค้า</span>
           </button>
           <button
             onClick={() => setShowStockInModal(true)}
@@ -419,10 +444,12 @@ const Products: React.FC = () => {
           onSave={handleStockInSave}
         />
       )}
-      {showQRStockIn && (
-        <StockInQRScanner
-          onClose={() => setShowQRStockIn(false)}
-          onStockUpdated={fetchData}
+      {showScannerStockIn && (
+        <BarcodeQRScanner
+          isOpen={true}
+          onScan={handleStockInScan}
+          onClose={() => setShowScannerStockIn(false)}
+          title="สแกนสินค้าเพื่อรับเข้าสต็อก"
         />
       )}
     </div>

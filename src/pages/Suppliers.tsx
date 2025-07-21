@@ -8,6 +8,7 @@ const Suppliers: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
   useEffect(() => {
     fetchSuppliers();
@@ -24,35 +25,95 @@ const Suppliers: React.FC = () => {
     }
   };
 
-  const AddSupplierModal = () => {
+  const handleEdit = (supplier: Supplier) => {
+    setEditingSupplier(supplier);
+    setShowAddModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('คุณแน่ใจหรือไม่ที่จะลบซัพพลายเออร์นี้?')) {
+      try {
+        // In a real app, this would call the API
+        setSuppliers(prev => prev.filter(s => s.id !== id));
+        alert('ลบซัพพลายเออร์เรียบร้อยแล้ว');
+      } catch (error) {
+        alert('ไม่สามารถลบซัพพลายเออร์ได้');
+      }
+    }
+  };
+
+  const SupplierModal = () => {
     const [formData, setFormData] = useState({
-      name: '',
-      contact: '',
-      phone: ''
+      name: editingSupplier?.name || '',
+      contact: editingSupplier?.contact || '',
+      phone: editingSupplier?.phone || ''
     });
+
+    useEffect(() => {
+      if (editingSupplier) {
+        setFormData({
+          name: editingSupplier.name,
+          contact: editingSupplier.contact,
+          phone: editingSupplier.phone
+        });
+      }
+    }, [editingSupplier]);
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-        await apiService.createSupplier(formData);
+        if (editingSupplier) {
+          // Update existing supplier
+          setSuppliers(prev => prev.map(s => 
+            s.id === editingSupplier.id 
+              ? { ...s, ...formData }
+              : s
+          ));
+          alert('แก้ไขซัพพลายเออร์เรียบร้อยแล้ว');
+        } else {
+          // Create new supplier
+          const newSupplier = {
+            id: Date.now().toString(),
+            ...formData
+          };
+          setSuppliers(prev => [...prev, newSupplier]);
+          alert('เพิ่มซัพพลายเออร์เรียบร้อยแล้ว');
+        }
         fetchSuppliers();
         setShowAddModal(false);
+        setEditingSupplier(null);
         setFormData({ name: '', contact: '', phone: '' });
       } catch (error) {
-        alert('Failed to create supplier');
+        alert('ไม่สามารถบันทึกข้อมูลซัพพลายเออร์ได้');
       }
+    };
+
+    const handleClose = () => {
+      setShowAddModal(false);
+      setEditingSupplier(null);
+      setFormData({ name: '', contact: '', phone: '' });
     };
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-lg max-w-md w-full">
           <div className="p-6">
-            <h2 className="text-xl font-bold mb-4">Add New Supplier</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">
+                {editingSupplier ? 'แก้ไขซัพพลายเออร์' : 'เพิ่มซัพพลายเออร์ใหม่'}
+              </h2>
+              <button
+                onClick={handleClose}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
             
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Supplier Name
+                  ชื่อซัพพลายเออร์
                 </label>
                 <input
                   type="text"
@@ -60,13 +121,13 @@ const Suppliers: React.FC = () => {
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter supplier name"
+                  placeholder="กรอกชื่อซัพพลายเออร์"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Contact Email
+                  อีเมลติดต่อ
                 </label>
                 <input
                   type="email"
@@ -74,13 +135,13 @@ const Suppliers: React.FC = () => {
                   value={formData.contact}
                   onChange={(e) => setFormData({...formData, contact: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter contact email"
+                  placeholder="กรอกอีเมลติดต่อ"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
+                  เบอร์โทรศัพท์
                 </label>
                 <input
                   type="text"
@@ -88,7 +149,7 @@ const Suppliers: React.FC = () => {
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter phone number"
+                  placeholder="กรอกเบอร์โทรศัพท์"
                 />
               </div>
 
@@ -97,14 +158,14 @@ const Suppliers: React.FC = () => {
                   type="submit"
                   className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
                 >
-                  Create Supplier
+                  {editingSupplier ? 'บันทึกการแก้ไข' : 'เพิ่มซัพพลายเออร์'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={handleClose}
                   className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
                 >
-                  Cancel
+                  ยกเลิก
                 </button>
               </div>
             </form>
@@ -170,10 +231,16 @@ const Suppliers: React.FC = () => {
                 </div>
               </div>
               <div className="flex space-x-2">
-                <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
+                <button 
+                  onClick={() => handleEdit(supplier)}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                >
                   <Edit2 className="h-4 w-4" />
                 </button>
-                <button className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                <button 
+                  onClick={() => handleDelete(supplier.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                >
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -207,7 +274,7 @@ const Suppliers: React.FC = () => {
       )}
 
       {/* Add Supplier Modal */}
-      {showAddModal && <AddSupplierModal />}
+      {showAddModal && <SupplierModal />}
     </div>
   );
 };

@@ -59,6 +59,7 @@ const EnhancedMemberManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMember, setSelectedMember] = useState<EnhancedMember | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<EnhancedMember | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [filterTier, setFilterTier] = useState('');
 
@@ -205,9 +206,178 @@ const EnhancedMemberManagement: React.FC = () => {
     const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          member.phone.includes(searchTerm) ||
                          member.email?.toLowerCase().includes(searchTerm.toLowerCase());
+  const handleEdit = (member: EnhancedMember) => {
+    setEditingMember(member);
+    setShowAddModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('คุณแน่ใจหรือไม่ที่จะลบสมาชิกนี้?')) {
+      try {
+        setMembers(prev => prev.filter(m => m.id !== id));
+        alert('ลบสมาชิกเรียบร้อยแล้ว');
+      } catch (error) {
+        alert('ไม่สามารถลบสมาชิกได้');
+      }
+    }
+  };
+
+  const MemberModal = () => {
+    const [formData, setFormData] = useState({
+      name: editingMember?.name || '',
+      phone: editingMember?.phone || '',
+      email: editingMember?.email || '',
+      address: editingMember?.address || ''
+    });
+
+    useEffect(() => {
+      if (editingMember) {
+        setFormData({
+          name: editingMember.name,
+          phone: editingMember.phone,
+          email: editingMember.email || '',
+          address: editingMember.address || ''
+        });
+      }
+    }, [editingMember]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      try {
+        if (editingMember) {
+          // Update existing member
+          setMembers(prev => prev.map(m => 
+            m.id === editingMember.id 
+              ? { ...m, ...formData }
+              : m
+          ));
+          alert('แก้ไขข้อมูลสมาชิกเรียบร้อยแล้ว');
+        } else {
+          // Create new member
+          const newMember: EnhancedMember = {
+            id: Date.now().toString(),
+            ...formData,
+            points: 0,
+            totalSpent: 0,
+            tier: 'bronze',
+            createdAt: new Date(),
+            lastVisit: new Date(),
+            pointsHistory: [],
+            purchaseHistory: [],
+            preferences: {
+              notifications: true,
+              emailMarketing: false,
+              smsMarketing: false,
+              favoriteCategories: []
+            }
+          };
+          setMembers(prev => [...prev, newMember]);
+          alert('เพิ่มสมาชิกเรียบร้อยแล้ว');
+        }
+        handleClose();
+      } catch (error) {
+        alert('ไม่สามารถบันทึกข้อมูลสมาชิกได้');
+      }
+    };
+
+    const handleClose = () => {
+      setShowAddModal(false);
+      setEditingMember(null);
+      setFormData({ name: '', phone: '', email: '', address: '' });
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg max-w-md w-full">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">
+                {editingMember ? 'แก้ไขข้อมูลสมาชิก' : 'เพิ่มสมาชิกใหม่'}
+              </h2>
+              <button
+                onClick={handleClose}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ชื่อ-นามสกุล
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="กรอกชื่อ-นามสกุล"
+                />
+              </div>
     const matchesTier = !filterTier || member.tier === filterTier;
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  เบอร์โทรศัพท์
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="กรอกเบอร์โทรศัพท์"
+                />
+              </div>
     return matchesSearch && matchesTier;
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  อีเมล
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="กรอกอีเมล (ไม่บังคับ)"
+                />
+              </div>
   });
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  ที่อยู่
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.address}
+                  onChange={(e) => setFormData({...formData, address: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="กรอกที่อยู่ (ไม่บังคับ)"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  {editingMember ? 'บันทึกการแก้ไข' : 'เพิ่มสมาชิก'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
+                >
+                  ยกเลิก
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const MemberDetailsModal = () => {
     if (!selectedMember) return null;
@@ -341,10 +511,10 @@ const EnhancedMemberManagement: React.FC = () => {
                 onClick={() => setShowDetailsModal(false)}
                 className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
               >
-                Close
+                ปิด
               </button>
               <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                Edit Member
+                แก้ไขข้อมูล
               </button>
             </div>
           </div>
@@ -370,7 +540,7 @@ const EnhancedMemberManagement: React.FC = () => {
           className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
         >
           <Plus className="h-5 w-5" />
-          <span>Add Member</span>
+          <span>เพิ่มสมาชิก</span>
         </button>
       </div>
 
@@ -486,8 +656,17 @@ const EnhancedMemberManagement: React.FC = () => {
                 >
                   <History className="h-4 w-4" />
                 </button>
-                <button className="p-2 text-gray-600 hover:bg-gray-50 rounded-md transition-colors">
+                <button 
+                  onClick={() => handleEdit(member)}
+                  className="p-2 text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+                >
                   <Edit2 className="h-4 w-4" />
+                </button>
+                <button 
+                  onClick={() => handleDelete(member.id)}
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -537,7 +716,7 @@ const EnhancedMemberManagement: React.FC = () => {
                 }}
                 className="w-full bg-blue-100 text-blue-700 py-2 px-4 rounded-md hover:bg-blue-200 transition-colors text-sm font-medium"
               >
-                View Details
+                ดูรายละเอียด
               </button>
             </div>
           </div>
@@ -553,6 +732,9 @@ const EnhancedMemberManagement: React.FC = () => {
 
       {/* Member Details Modal */}
       {showDetailsModal && <MemberDetailsModal />}
+      
+      {/* Add/Edit Member Modal */}
+      {showAddModal && <MemberModal />}
     </div>
   );
 };

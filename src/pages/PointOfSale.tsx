@@ -5,7 +5,7 @@ import StripePayment from '../components/StripePayment';
 import CashPaymentModal from '../components/CashPaymentModal';
 import InvoiceGenerator from '../components/InvoiceGenerator';
 import EnhancedProductCard from '../components/EnhancedProductCard';
-import QRScanner from '../components/QRScanner';
+import BarcodeQRScanner from '../components/BarcodeQRScanner';
 import { 
   ShoppingCart, 
   Plus, 
@@ -35,7 +35,7 @@ const PointOfSale: React.FC = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [completedSale, setCompletedSale] = useState<any>(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
-  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -139,26 +139,26 @@ const PointOfSale: React.FC = () => {
     }
   };
 
-  const handleQRScan = async (qrData: string) => {
-    setShowQRScanner(false);
+  const handleScan = async (scanData: string, type: 'barcode' | 'qr') => {
+    setShowScanner(false);
     
     try {
-      // Extract product ID from QR code
+      // Extract product ID from scan data
       let productId = '';
       
       try {
-        const parsed = JSON.parse(qrData);
+        const parsed = JSON.parse(scanData);
         productId = parsed.productId || parsed.id;
       } catch {
-        // If not JSON, treat as direct product ID or QR code
-        productId = qrData.replace(/^PROD-/, ''); // Remove PROD- prefix if exists
+        // If not JSON, treat as direct product ID, QR code, or barcode
+        productId = scanData.replace(/^PROD-/, ''); // Remove PROD- prefix if exists
       }
 
-      // Find product by ID, QR code, or barcode
+      // Find product by ID, QR code, or barcode  
       const product = products.find(p => 
         p.id === productId || 
-        p.qrCode === qrData ||
-        p.barcode === qrData
+        p.qrCode === scanData ||
+        p.barcode === scanData
       );
 
       if (product) {
@@ -179,11 +179,11 @@ const PointOfSale: React.FC = () => {
           setTimeout(() => document.body.removeChild(notification), 300);
         }, 2000);
       } else {
-        alert(`Product not found for QR code: ${qrData}`);
+        alert(`ไม่พบสินค้าสำหรับ ${type === 'qr' ? 'QR Code' : 'Barcode'}: ${scanData}`);
       }
     } catch (error) {
-      console.error('QR scan error:', error);
-      alert('Failed to process QR code');
+      console.error('Scan error:', error);
+      alert(`ไม่สามารถประมวลผล ${type === 'qr' ? 'QR Code' : 'Barcode'} ได้`);
     }
   };
 
@@ -534,11 +534,11 @@ const PointOfSale: React.FC = () => {
             />
           </div>
           <button
-            onClick={() => setShowQRScanner(true)}
+            onClick={() => setShowScanner(true)}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
           >
             <QrCode className="h-5 w-5" />
-            <span className="hidden sm:inline">Scan QR</span>
+            <span className="hidden sm:inline">สแกน</span>
           </button>
         </div>
         
@@ -727,12 +727,12 @@ const PointOfSale: React.FC = () => {
         />
       )}
       {showMemberModal && <MemberModal />}
-      {showQRScanner && (
-        <QRScanner
+      {showScanner && (
+        <BarcodeQRScanner
           isOpen={true}
-          onScan={handleQRScan}
-          onClose={() => setShowQRScanner(false)}
-          title="Scan Product QR Code"
+          onScan={handleScan}
+          onClose={() => setShowScanner(false)}
+          title="สแกนบาร์โค้ดหรือ QR Code สินค้า"
         />
       )}
     </div>
