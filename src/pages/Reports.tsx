@@ -30,22 +30,8 @@ import {
 const Reports: React.FC = () => {
   const [salesData, setSalesData] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [salesReport, setSalesReport] = useState<any>({
-    summary: {
-      totalRevenue: 0,
-      totalSales: 0,
-      averageOrderValue: 0
-    },
-    dailySales: [],
-    topProducts: [],
-    paymentMethods: []
-  });
-  const [inventoryReport, setInventoryReport] = useState<any>({
-    totalProducts: 0,
-    totalValue: 0,
-    lowStockProducts: [],
-    outOfStockProducts: []
-  });
+  const [salesReport, setSalesReport] = useState<any>(null);
+  const [inventoryReport, setInventoryReport] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState({
@@ -60,31 +46,43 @@ const Reports: React.FC = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const [salesResponse, productsResponse] = await Promise.all([
-        apiService.getSales(),
-        apiService.getProducts()
-      ]);
+      
+      // Fetch sales data
+      const salesResponse = await apiService.getSales();
+      console.log('Sales Response:', salesResponse);
+      
+      // Fetch products data
+      const productsResponse = await apiService.getProducts();
+      console.log('Products Response:', productsResponse);
       
       // Handle products response
       const productList = Array.isArray(productsResponse) 
         ? productsResponse 
         : productsResponse.products || [];
+      
+      console.log('Product List:', productList);
       setProducts(productList);
       
       // Filter sales by date range
-      const filteredSales = salesResponse.filter((sale: Sale) => {
+      const allSales = Array.isArray(salesResponse) ? salesResponse : [];
+      console.log('All Sales:', allSales);
+      
+      const filteredSales = allSales.filter((sale: Sale) => {
         const saleDate = new Date(sale.createdAt);
         const startDate = new Date(dateRange.startDate);
         const endDate = new Date(dateRange.endDate);
         return saleDate >= startDate && saleDate <= endDate;
       });
       
+      console.log('Filtered Sales:', filteredSales);
       setSalesData(filteredSales);
       
-      // Calculate real sales report
+      // Calculate sales summary
       const totalRevenue = filteredSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0);
       const totalSales = filteredSales.length;
       const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
+      
+      console.log('Sales Summary:', { totalRevenue, totalSales, averageOrderValue });
       
       // Calculate daily sales
       const dailySalesMap = new Map();
@@ -101,6 +99,8 @@ const Reports: React.FC = () => {
       const dailySales = Array.from(dailySalesMap.values()).sort((a, b) => 
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
+      
+      console.log('Daily Sales:', dailySales);
       
       // Calculate top products
       const productSalesMap = new Map();
@@ -123,6 +123,8 @@ const Reports: React.FC = () => {
       const topProducts = Array.from(productSalesMap.values())
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 10);
+        
+      console.log('Top Products:', topProducts);
       
       // Calculate payment methods
       const paymentMethodsMap = new Map();
@@ -138,6 +140,8 @@ const Reports: React.FC = () => {
       
       const paymentMethods = Array.from(paymentMethodsMap.values());
       
+      console.log('Payment Methods:', paymentMethods);
+      
       setSalesReport({
         summary: {
           totalRevenue,
@@ -150,6 +154,8 @@ const Reports: React.FC = () => {
       });
       
       // Calculate inventory report
+      console.log('Calculating inventory from products:', productList.length);
+      
       const lowStockProducts = productList.filter((p: Product) => p.stock > 0 && p.stock <= 5);
       const outOfStockProducts = productList.filter((p: Product) => p.stock === 0);
       const totalValue = productList.reduce((sum: number, p: Product) => sum + (p.price * p.stock), 0);
@@ -161,6 +167,8 @@ const Reports: React.FC = () => {
         outOfStockProducts
       });
       
+      console.log('Inventory Report:', { totalProducts: productList.length, totalValue, lowStockProducts: lowStockProducts.length, outOfStockProducts: outOfStockProducts.length });
+      
     } catch (error) {
       console.error('Failed to fetch reports:', error);
     } finally {
@@ -169,7 +177,7 @@ const Reports: React.FC = () => {
   };
 
   const handleDateRangeChange = () => {
-    setLoading(true);
+    console.log('Date range changed:', dateRange);
     fetchReports();
   };
 
@@ -200,6 +208,11 @@ const Reports: React.FC = () => {
     });
     
     const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    
+    if (totalRevenue === 0) {
+      return [{ name: 'ไม่มีข้อมูล', value: 100, color: '#9CA3AF' }];
+    }
+    
     return Array.from(categoryMap.entries())
       .map(([name, revenue], index) => ({
         name,
@@ -208,6 +221,30 @@ const Reports: React.FC = () => {
       }))
       .sort((a, b) => b.value - a.value);
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show error state if no data
+  if (!salesReport || !inventoryReport) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600">ไม่สามารถโหลดข้อมูลรายงานได้</p>
+        <button
+          onClick={fetchReports}
+          className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+        >
+          ลองใหม่
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -291,12 +328,12 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">รายได้รวม ({dateRange.startDate} - {dateRange.endDate})</p>
               <p className="text-2xl font-bold text-gray-900">
-                ฿{salesReport.summary.totalRevenue.toLocaleString()}
+                ฿{(salesReport?.summary?.totalRevenue || 0).toLocaleString()}
               </p>
             </div>
             <DollarSign className="h-8 w-8 text-green-600" />
           </div>
-          <p className="text-sm text-gray-500 mt-2">จาก {salesReport.summary.totalSales} รายการ</p>
+          <p className="text-sm text-gray-500 mt-2">จาก {salesReport?.summary?.totalSales || 0} รายการ</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -304,7 +341,7 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">ยอดขายรวม</p>
               <p className="text-2xl font-bold text-gray-900">
-                {salesReport.summary.totalSales}
+                {salesReport?.summary?.totalSales || 0}
               </p>
             </div>
             <FileText className="h-8 w-8 text-blue-600" />
@@ -317,7 +354,7 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">ยอดขายเฉลี่ย</p>
               <p className="text-2xl font-bold text-gray-900">
-                ฿{Math.round(salesReport.summary.averageOrderValue).toLocaleString()}
+                ฿{Math.round(salesReport?.summary?.averageOrderValue || 0).toLocaleString()}
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-purple-600" />
@@ -330,7 +367,7 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">สินค้าใกล้หมด</p>
               <p className="text-2xl font-bold text-gray-900">
-                {inventoryReport.lowStockProducts.length}
+                {inventoryReport?.lowStockProducts?.length || 0}
               </p>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-600" />
@@ -344,7 +381,7 @@ const Reports: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">ยอดขายรายวัน</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={salesReport.dailySales}>
+            <BarChart data={salesReport?.dailySales || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
@@ -388,26 +425,26 @@ const Reports: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {inventoryReport.totalProducts}
+              {inventoryReport?.totalProducts || 0}
             </div>
             <div className="text-sm text-gray-600">สินค้าทั้งหมด</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              ฿{inventoryReport.totalValue.toLocaleString()}
+              ฿{(inventoryReport?.totalValue || 0).toLocaleString()}
             </div>
             <div className="text-sm text-gray-600">มูลค่าสินค้าคงคลัง</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-red-600">
-              {inventoryReport.outOfStockProducts.length}
+              {inventoryReport?.outOfStockProducts?.length || 0}
             </div>
             <div className="text-sm text-gray-600">สินค้าหมด</div>
           </div>
         </div>
 
         {/* Low Stock Products */}
-        {inventoryReport.lowStockProducts.length > 0 && (
+        {inventoryReport?.lowStockProducts?.length > 0 && (
           <div>
             <h4 className="font-medium text-gray-900 mb-3">สินค้าใกล้หมด</h4>
             <div className="overflow-x-auto">
@@ -429,7 +466,7 @@ const Reports: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {inventoryReport.lowStockProducts.map((product: Product) => (
+                  {(inventoryReport?.lowStockProducts || []).map((product: Product) => (
                     <tr key={product.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -468,7 +505,7 @@ const Reports: React.FC = () => {
         )}
         
         {/* Top Selling Products */}
-        {salesReport.topProducts.length > 0 && (
+        {salesReport?.topProducts?.length > 0 && (
           <div className="mt-6">
             <h4 className="font-medium text-gray-900 mb-3">สินค้าขายดี (ช่วงเวลาที่เลือก)</h4>
             <div className="overflow-x-auto">
@@ -487,7 +524,7 @@ const Reports: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {salesReport.topProducts.slice(0, 5).map((item: any, index: number) => (
+                  {(salesReport?.topProducts || []).slice(0, 5).map((item: any, index: number) => (
                     <tr key={item.productId}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -516,7 +553,28 @@ const Reports: React.FC = () => {
             </div>
           </div>
         )}
+        
+        {/* No Data Message */}
+        {(!salesReport?.topProducts || salesReport.topProducts.length === 0) && (
+          <div className="mt-6 text-center py-8">
+            <div className="text-gray-400 mb-2">📊</div>
+            <p className="text-gray-500">ไม่มีข้อมูลการขายในช่วงเวลาที่เลือก</p>
+            <p className="text-sm text-gray-400 mt-1">
+              ลองเปลี่ยนช่วงวันที่หรือทำการขายเพื่อดูรายงาน
+            </p>
+          </div>
+        )}
       </div>
+      
+      {/* Debug Info - Remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-gray-100 p-4 rounded-lg mt-6">
+          <h4 className="font-medium mb-2">Debug Info:</h4>
+          <p className="text-sm">Sales Data: {salesData.length} items</p>
+          <p className="text-sm">Products: {products.length} items</p>
+          <p className="text-sm">Date Range: {dateRange.startDate} to {dateRange.endDate}</p>
+        </div>
+      )}
         </>
       )}
 

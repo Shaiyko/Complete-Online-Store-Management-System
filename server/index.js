@@ -741,19 +741,25 @@ app.post('/api/members', authenticateToken, (req, res) => {
 
 // Sales Routes
 app.get('/api/sales', authenticateToken, (req, res) => {
+  console.log('GET /api/sales - Request received');
+  console.log('Current sales data:', sales.length, 'items');
+  
   const { startDate, endDate } = req.query;
   
   let filteredSales = sales;
   
   if (startDate && endDate) {
+    console.log('Filtering by date range:', startDate, 'to', endDate);
     const start = new Date(startDate);
     const end = new Date(endDate);
     filteredSales = sales.filter(sale => {
       const saleDate = new Date(sale.createdAt);
       return saleDate >= start && saleDate <= end;
     });
+    console.log('Filtered sales:', filteredSales.length, 'items');
   }
   
+  console.log('Returning sales data:', filteredSales);
   res.json(filteredSales);
 });
 

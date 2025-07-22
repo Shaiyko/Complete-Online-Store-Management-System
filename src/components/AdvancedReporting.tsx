@@ -92,11 +92,16 @@ const AdvancedReporting: React.FC = () => {
   const fetchReportData = async () => {
     setLoading(true);
     try {
+      console.log('Fetching advanced report data...');
+      
       // Fetch real data
       const [salesResponse, productsResponse] = await Promise.all([
         apiService.getSales(),
         apiService.getProducts()
       ]);
+      
+      console.log('Advanced Report - Sales Response:', salesResponse);
+      console.log('Advanced Report - Products Response:', productsResponse);
       
       const productList = Array.isArray(productsResponse) 
         ? productsResponse 
@@ -104,13 +109,15 @@ const AdvancedReporting: React.FC = () => {
       setProducts(productList);
       
       // Filter sales by date range
-      const filteredSales = salesResponse.filter((sale: any) => {
+      const allSales = Array.isArray(salesResponse) ? salesResponse : [];
+      const filteredSales = allSales.filter((sale: any) => {
         const saleDate = new Date(sale.createdAt);
         const startDate = new Date(dateRange.startDate);
         const endDate = new Date(dateRange.endDate);
         return saleDate >= startDate && saleDate <= endDate;
       });
       
+      console.log('Advanced Report - Filtered Sales:', filteredSales);
       setSalesData(filteredSales);
       
       // Calculate employee stats from real data
@@ -139,6 +146,8 @@ const AdvancedReporting: React.FC = () => {
       
       const employeeStats = Array.from(employeeStatsMap.values());
       
+      console.log('Employee Stats:', employeeStats);
+      
       // Calculate daily sales data
       const dailySalesMap = new Map();
       filteredSales.forEach((sale: any) => {
@@ -159,6 +168,8 @@ const AdvancedReporting: React.FC = () => {
       const dailySalesData = Array.from(dailySalesMap.values()).sort((a, b) => 
         new Date(a.date).getTime() - new Date(b.date).getTime()
       );
+      
+      console.log('Daily Sales Data:', dailySalesData);
       
       // Calculate best selling items
       const productSalesMap = new Map();
@@ -182,6 +193,8 @@ const AdvancedReporting: React.FC = () => {
       
       const bestSellingItems = Array.from(productSalesMap.values())
         .sort((a, b) => b.revenue - a.revenue);
+        
+      console.log('Best Selling Items:', bestSellingItems);
       
       // Calculate peak hours from real data
       const hourlyStatsMap = new Map();
@@ -204,6 +217,8 @@ const AdvancedReporting: React.FC = () => {
       
       const peakHours = Array.from(hourlyStatsMap.values())
         .sort((a, b) => parseInt(a.hour) - parseInt(b.hour));
+        
+      console.log('Peak Hours:', peakHours);
       
       // Calculate summary
       const totalRevenue = filteredSales.reduce((sum: number, sale: any) => sum + sale.total, 0);
@@ -213,6 +228,8 @@ const AdvancedReporting: React.FC = () => {
         emp.totalSales > top.totalSales ? emp : top, employeeStats[0] || { name: 'N/A' }
       );
       const bestSellingProduct = bestSellingItems[0]?.productName || 'N/A';
+      
+      console.log('Summary:', { totalRevenue, totalTransactions, averageTransaction, topEmployee: topEmployee?.name, bestSellingProduct });
       
       setReportData({
         employeeStats,
@@ -229,6 +246,7 @@ const AdvancedReporting: React.FC = () => {
       });
     } catch (error) {
       console.error('Failed to fetch report data:', error);
+      alert('ไม่สามารถโหลดข้อมูลรายงานได้: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -421,7 +439,7 @@ const AdvancedReporting: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Total Revenue</p>
+              <p className="text-sm font-medium text-gray-600">รายได้รวม</p>
               <p className="text-2xl font-bold text-green-600">
                 ฿{reportData.summary.totalRevenue.toLocaleString()}
               </p>
@@ -433,7 +451,7 @@ const AdvancedReporting: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Transactions</p>
+              <p className="text-sm font-medium text-gray-600">รายการขาย</p>
               <p className="text-2xl font-bold text-blue-600">
                 {reportData.summary.totalTransactions}
               </p>
@@ -445,7 +463,7 @@ const AdvancedReporting: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Avg Transaction</p>
+              <p className="text-sm font-medium text-gray-600">ยอดขายเฉลี่ย</p>
               <p className="text-2xl font-bold text-purple-600">
                 ฿{Math.round(reportData.summary.averageTransaction).toLocaleString()}
               </p>
@@ -457,7 +475,7 @@ const AdvancedReporting: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Top Employee</p>
+              <p className="text-sm font-medium text-gray-600">พนักงานยอดเยี่ยม</p>
               <p className="text-lg font-bold text-orange-600">
                 {reportData.summary.topEmployee}
               </p>
@@ -469,7 +487,7 @@ const AdvancedReporting: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">Best Product</p>
+              <p className="text-sm font-medium text-gray-600">สินค้าขายดี</p>
               <p className="text-sm font-bold text-yellow-600">
                 {reportData.summary.bestSellingProduct}
               </p>
@@ -508,54 +526,62 @@ const AdvancedReporting: React.FC = () => {
             <div className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Sales Trend</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">แนวโน้มยอดขายรายวัน</h3>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={reportData.dailySalesData}>
+                    <BarChart data={reportData.dailySalesData || []}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Line type="monotone" dataKey="sales" stroke="#3B82F6" name="Sales (฿)" />
-                      <Line type="monotone" dataKey="transactions" stroke="#10B981" name="Transactions" />
-                    </LineChart>
+                      <Bar dataKey="sales" fill="#3B82F6" name="ยอดขาย (฿)" />
+                      <Bar dataKey="transactions" fill="#10B981" name="รายการขาย" />
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Employee Performance</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">ประสิทธิภาพพนักงาน</h3>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={reportData.employeeStats}>
+                    <BarChart data={reportData.employeeStats || []}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />
                       <YAxis />
                       <Tooltip />
                       <Legend />
-                      <Bar dataKey="totalSales" fill="#3B82F6" name="Total Sales (฿)" />
+                      <Bar dataKey="totalSales" fill="#3B82F6" name="ยอดขายรวม (฿)" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
+              
+              {/* No Data Message */}
+              {(!reportData.dailySalesData || reportData.dailySalesData.length === 0) && (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">📈</div>
+                  <p className="text-gray-500">ไม่มีข้อมูลการขายในช่วงเวลาที่เลือก</p>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'employees' && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Employee Performance Details</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">รายละเอียดประสิทธิภาพพนักงาน</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Working Hours</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Sales</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Transactions</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Transaction</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">พนักงาน</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ตำแหน่ง</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ชั่วโมงทำงาน</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ยอดขายรวม</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รายการขาย</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ยอดขายเฉลี่ย</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {reportData.employeeStats.map((employee) => (
+                    {(reportData.employeeStats || []).map((employee) => (
                       <tr key={employee.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-gray-900">{employee.name}</div>
@@ -581,25 +607,32 @@ const AdvancedReporting: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
+                
+                {(!reportData.employeeStats || reportData.employeeStats.length === 0) && (
+                  <div className="text-center py-8">
+                    <div className="text-gray-400 mb-2">👥</div>
+                    <p className="text-gray-500">ไม่มีข้อมูลประสิทธิภาพพนักงาน</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {activeTab === 'products' && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Best Selling Products</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">สินค้าขายดี</h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty Sold</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Revenue</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">จำนวนขาย</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">รายได้</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {reportData.bestSellingItems.map((item) => (
+                      {(reportData.bestSellingItems || []).slice(0, 10).map((item) => (
                         <tr key={item.productId}>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="font-medium text-gray-900">{item.productName}</div>
@@ -615,13 +648,20 @@ const AdvancedReporting: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                  
+                  {(!reportData.bestSellingItems || reportData.bestSellingItems.length === 0) && (
+                    <div className="text-center py-8">
+                      <div className="text-gray-400 mb-2">📦</div>
+                      <p className="text-gray-500">ไม่มีข้อมูลสินค้าขายดี</p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie
-                        data={reportData.bestSellingItems.slice(0, 5)}
+                        data={(reportData.bestSellingItems || []).slice(0, 5)}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
@@ -630,7 +670,7 @@ const AdvancedReporting: React.FC = () => {
                         fill="#8884d8"
                         dataKey="quantitySold"
                       >
-                        {reportData.bestSellingItems.slice(0, 5).map((entry, index) => (
+                        {(reportData.bestSellingItems || []).slice(0, 5).map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'][index]} />
                         ))}
                       </Pie>
@@ -644,18 +684,25 @@ const AdvancedReporting: React.FC = () => {
 
           {activeTab === 'timing' && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Peak Sales Hours</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">ช่วงเวลาขายดี</h3>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={reportData.peakHours}>
+                <BarChart data={reportData.peakHours || []}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="hour" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="sales" fill="#3B82F6" name="Sales (฿)" />
-                  <Bar dataKey="transactions" fill="#10B981" name="Transactions" />
+                  <Bar dataKey="sales" fill="#3B82F6" name="ยอดขาย (฿)" />
+                  <Bar dataKey="transactions" fill="#10B981" name="รายการขาย" />
                 </BarChart>
               </ResponsiveContainer>
+              
+              {(!reportData.peakHours || reportData.peakHours.length === 0) && (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">🕐</div>
+                  <p className="text-gray-500">ไม่มีข้อมูลช่วงเวลาขายดี</p>
+                </div>
+              )}
             </div>
           )}
         </div>
