@@ -13,14 +13,6 @@ const { v4: uuidv4 } = require('uuid');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key');
 
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true
-  }
-});
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-jwt-secret-key';
@@ -52,7 +44,7 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-  origin: "*",
+  origin: true,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -60,6 +52,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
 app.use('/api/', limiter);
+
+// Trust proxy for WebContainer environment
+app.set('trust proxy', true);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -290,30 +285,6 @@ let stockLedger = [
     createdAt: new Date('2024-01-20')
   }
 ];
-
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  logger.info(`User connected: ${socket.id}`);
-  
-  socket.on('join-store', (storeId) => {
-    socket.join(`store-${storeId}`);
-    logger.info(`User ${socket.id} joined store ${storeId}`);
-  });
-
-  socket.on('disconnect', () => {
-    logger.info(`User disconnected: ${socket.id}`);
-  });
-});
-
-// Broadcast inventory updates
-const broadcastInventoryUpdate = (productId, newStock) => {
-  io.emit('inventory-update', { productId, newStock });
-};
-
-// Broadcast new sale
-const broadcastNewSale = (sale) => {
-  io.emit('new-sale', sale);
-};
 
 // Auth middleware
 const authenticateToken = (req, res, next) => {
@@ -610,15 +581,11 @@ app.post('/api/sales', authenticateToken, (req, res) => {
       });
 
       // Broadcast inventory update
-      broadcastInventoryUpdate(item.productId, products[productIndex].stock);
+      logger.info(`Stock updated for product ${item.productId}: ${products[productIndex].stock}`);
       
       // Check for low stock alert
       if (products[productIndex].stock <= 5 && oldStock > 5) {
-        io.emit('low-stock-alert', {
-          productId: item.productId,
-          productName: products[productIndex].name,
-          currentStock: products[productIndex].stock
-        });
+        logger.warn(`Low stock alert for ${products[productIndex].name}: ${products[productIndex].stock} remaining`);
       }
     }
   });
@@ -634,32 +601,6 @@ app.post('/api/sales', authenticateToken, (req, res) => {
   }
 
   sales.push(newSale);
-  
-  // Add to daily sales log
-  const today = new Date().toISOString().split('T')[0];
-  const existingLog = dailySalesLog.find(log => 
-    log.date === today && log.employeeId === req.user.id
-  );
-  
-  if (existingLog) {
-    existingLog.transactions.push(newSale);
-    existingLog.totalSales += total;
-    existingLog.transactionCount += 1;
-  } else {
-    dailySalesLog.push({
-      id: uuidv4(),
-      date: today,
-      employeeId: req.user.id,
-      employeeName: req.user.username,
-      transactions: [newSale],
-      totalSales: total,
-      transactionCount: 1,
-      workingHours: 8 // Default, could be tracked separately
-    });
-  }
-  
-  // Broadcast new sale
-  broadcastNewSale(newSale);
   
   logger.info(`New sale created: ${newSale.id} by ${req.user.username}`);
   
@@ -697,9 +638,6 @@ app.post('/api/products', authenticateToken, authorize(['owner', 'admin']), (req
 
   products.push(newProduct);
   
-  // Broadcast new product
-  io.emit('product-added', newProduct);
-  
   res.status(201).json(newProduct);
 });
 
@@ -717,9 +655,6 @@ app.put('/api/products/:id', authenticateToken, authorize(['owner', 'admin']), (
 
   products[productIndex] = updatedProduct;
   
-  // Broadcast product update
-  io.emit('product-updated', updatedProduct);
-  
   res.json(updatedProduct);
 });
 
@@ -731,9 +666,6 @@ app.delete('/api/products/:id', authenticateToken, authorize(['owner', 'admin'])
 
   const deletedProduct = products[productIndex];
   products.splice(productIndex, 1);
-  
-  // Broadcast product deletion
-  io.emit('product-deleted', { productId: req.params.id });
   
   logger.info(`Product deleted: ${deletedProduct.name} by ${req.user.username}`);
   res.json({ message: 'Product deleted successfully' });
@@ -846,7 +778,7 @@ app.post('/api/stock-in', authenticateToken, authorize(['owner', 'admin']), (req
         });
         
         // Broadcast inventory update
-        broadcastInventoryUpdate(item.productId, products[productIndex].stock);
+        logger.info(`Stock updated via stock-in for product ${item.productId}: ${products[productIndex].stock}`);
       }
     });
   }
@@ -999,12 +931,12 @@ app.use('*', (req, res) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
-  app.close(() => {
+  server.close(() => {
     logger.info('Process terminated');
   });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   logger.info(`Server running on port ${PORT}`);
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
