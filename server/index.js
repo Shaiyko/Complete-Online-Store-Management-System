@@ -999,12 +999,12 @@ app.use('*', (req, res) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
-  server.close(() => {
+  app.close(() => {
     logger.info('Process terminated');
   });
 });
 
-server.listen(PORT, () => {
+app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
