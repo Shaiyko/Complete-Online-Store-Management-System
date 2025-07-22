@@ -741,7 +741,20 @@ app.post('/api/members', authenticateToken, (req, res) => {
 
 // Sales Routes
 app.get('/api/sales', authenticateToken, (req, res) => {
-  res.json(sales);
+  const { startDate, endDate } = req.query;
+  
+  let filteredSales = sales;
+  
+  if (startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    filteredSales = sales.filter(sale => {
+      const saleDate = new Date(sale.createdAt);
+      return saleDate >= start && saleDate <= end;
+    });
+  }
+  
+  res.json(filteredSales);
 });
 
 // Stock In Documents Routes

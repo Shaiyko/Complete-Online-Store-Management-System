@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../services/api';
+import { Sale, Product } from '../types';
 import StockLedger from '../components/StockLedger';
 import AdvancedReporting from '../components/AdvancedReporting';
 import { 
@@ -27,8 +28,24 @@ import {
 } from 'lucide-react';
 
 const Reports: React.FC = () => {
-  const [salesReport, setSalesReport] = useState<any>(null);
-  const [inventoryReport, setInventoryReport] = useState<any>(null);
+  const [salesData, setSalesData] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [salesReport, setSalesReport] = useState<any>({
+    summary: {
+      totalRevenue: 0,
+      totalSales: 0,
+      averageOrderValue: 0
+    },
+    dailySales: [],
+    topProducts: [],
+    paymentMethods: []
+  });
+  const [inventoryReport, setInventoryReport] = useState<any>({
+    totalProducts: 0,
+    totalValue: 0,
+    lowStockProducts: [],
+    outOfStockProducts: []
+  });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [dateRange, setDateRange] = useState({
@@ -42,13 +59,108 @@ const Reports: React.FC = () => {
 
   const fetchReports = async () => {
     try {
-      const [salesData, inventoryData] = await Promise.all([
-        apiService.getSalesReport(dateRange.startDate, dateRange.endDate),
-        apiService.getInventoryReport()
+      setLoading(true);
+      const [salesResponse, productsResponse] = await Promise.all([
+        apiService.getSales(),
+        apiService.getProducts()
       ]);
       
-      setSalesReport(salesData);
-      setInventoryReport(inventoryData);
+      // Handle products response
+      const productList = Array.isArray(productsResponse) 
+        ? productsResponse 
+        : productsResponse.products || [];
+      setProducts(productList);
+      
+      // Filter sales by date range
+      const filteredSales = salesResponse.filter((sale: Sale) => {
+        const saleDate = new Date(sale.createdAt);
+        const startDate = new Date(dateRange.startDate);
+        const endDate = new Date(dateRange.endDate);
+        return saleDate >= startDate && saleDate <= endDate;
+      });
+      
+      setSalesData(filteredSales);
+      
+      // Calculate real sales report
+      const totalRevenue = filteredSales.reduce((sum: number, sale: Sale) => sum + sale.total, 0);
+      const totalSales = filteredSales.length;
+      const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0;
+      
+      // Calculate daily sales
+      const dailySalesMap = new Map();
+      filteredSales.forEach((sale: Sale) => {
+        const date = new Date(sale.createdAt).toISOString().split('T')[0];
+        if (!dailySalesMap.has(date)) {
+          dailySalesMap.set(date, { date, sales: 0, orders: 0 });
+        }
+        const dayData = dailySalesMap.get(date);
+        dayData.sales += sale.total;
+        dayData.orders += 1;
+      });
+      
+      const dailySales = Array.from(dailySalesMap.values()).sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      
+      // Calculate top products
+      const productSalesMap = new Map();
+      filteredSales.forEach((sale: Sale) => {
+        sale.items.forEach(item => {
+          if (!productSalesMap.has(item.productId)) {
+            productSalesMap.set(item.productId, {
+              productId: item.productId,
+              name: item.name,
+              quantity: 0,
+              revenue: 0
+            });
+          }
+          const productData = productSalesMap.get(item.productId);
+          productData.quantity += item.quantity;
+          productData.revenue += item.price * item.quantity;
+        });
+      });
+      
+      const topProducts = Array.from(productSalesMap.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 10);
+      
+      // Calculate payment methods
+      const paymentMethodsMap = new Map();
+      filteredSales.forEach((sale: Sale) => {
+        const method = sale.paymentMethod;
+        if (!paymentMethodsMap.has(method)) {
+          paymentMethodsMap.set(method, { name: method, value: 0, count: 0 });
+        }
+        const methodData = paymentMethodsMap.get(method);
+        methodData.value += sale.total;
+        methodData.count += 1;
+      });
+      
+      const paymentMethods = Array.from(paymentMethodsMap.values());
+      
+      setSalesReport({
+        summary: {
+          totalRevenue,
+          totalSales,
+          averageOrderValue
+        },
+        dailySales,
+        topProducts,
+        paymentMethods
+      });
+      
+      // Calculate inventory report
+      const lowStockProducts = productList.filter((p: Product) => p.stock > 0 && p.stock <= 5);
+      const outOfStockProducts = productList.filter((p: Product) => p.stock === 0);
+      const totalValue = productList.reduce((sum: number, p: Product) => sum + (p.price * p.stock), 0);
+      
+      setInventoryReport({
+        totalProducts: productList.length,
+        totalValue,
+        lowStockProducts,
+        outOfStockProducts
+      });
+      
     } catch (error) {
       console.error('Failed to fetch reports:', error);
     } finally {
@@ -68,23 +180,34 @@ const Reports: React.FC = () => {
     { id: 'analytics', name: 'Analytics', icon: BarChart }
   ];
 
-  // Mock data for charts
-  const dailySalesData = [
-    { date: '2024-01-15', sales: 25000, orders: 12 },
-    { date: '2024-01-16', sales: 32000, orders: 18 },
-    { date: '2024-01-17', sales: 28000, orders: 15 },
-    { date: '2024-01-18', sales: 45000, orders: 22 },
-    { date: '2024-01-19', sales: 38000, orders: 19 },
-    { date: '2024-01-20', sales: 52000, orders: 24 },
-    { date: '2024-01-21', sales: 41000, orders: 21 }
-  ];
-
-  const categoryData = [
-    { name: 'อิเล็กทรอนิกส์', value: 65, color: '#3B82F6' },
-    { name: 'อาหาร', value: 25, color: '#10B981' },
-    { name: 'เสื้อผ้า', value: 8, color: '#F59E0B' },
-    { name: 'หนังสือ', value: 2, color: '#EF4444' }
-  ];
+  // Calculate category data from real sales
+  const getCategoryData = () => {
+    const categoryMap = new Map();
+    let totalRevenue = 0;
+    
+    salesData.forEach(sale => {
+      sale.items.forEach(item => {
+        const product = products.find(p => p.id === item.productId);
+        const category = product?.category || 'อื่นๆ';
+        const revenue = item.price * item.quantity;
+        
+        if (!categoryMap.has(category)) {
+          categoryMap.set(category, 0);
+        }
+        categoryMap.set(category, categoryMap.get(category) + revenue);
+        totalRevenue += revenue;
+      });
+    });
+    
+    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    return Array.from(categoryMap.entries())
+      .map(([name, revenue], index) => ({
+        name,
+        value: totalRevenue > 0 ? Math.round((revenue / totalRevenue) * 100) : 0,
+        color: colors[index % colors.length]
+      }))
+      .sort((a, b) => b.value - a.value);
+  };
 
   if (loading) {
     return (
@@ -166,14 +289,14 @@ const Reports: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600">รายได้รวม</p>
+              <p className="text-sm font-medium text-gray-600">รายได้รวม ({dateRange.startDate} - {dateRange.endDate})</p>
               <p className="text-2xl font-bold text-gray-900">
-                ฿{salesReport?.summary?.totalRevenue?.toLocaleString() || '0'}
+                ฿{salesReport.summary.totalRevenue.toLocaleString()}
               </p>
             </div>
             <DollarSign className="h-8 w-8 text-green-600" />
           </div>
-          <p className="text-sm text-green-600 mt-2">+12.5% จากช่วงก่อน</p>
+          <p className="text-sm text-gray-500 mt-2">จาก {salesReport.summary.totalSales} รายการ</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -181,12 +304,12 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">ยอดขายรวม</p>
               <p className="text-2xl font-bold text-gray-900">
-                {salesReport?.summary?.totalSales || 0}
+                {salesReport.summary.totalSales}
               </p>
             </div>
             <FileText className="h-8 w-8 text-blue-600" />
           </div>
-          <p className="text-sm text-blue-600 mt-2">+8.2% จากช่วงก่อน</p>
+          <p className="text-sm text-gray-500 mt-2">รายการขาย</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -194,12 +317,12 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">ยอดขายเฉลี่ย</p>
               <p className="text-2xl font-bold text-gray-900">
-                ฿{salesReport?.summary?.averageOrderValue?.toLocaleString() || '0'}
+                ฿{Math.round(salesReport.summary.averageOrderValue).toLocaleString()}
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-purple-600" />
           </div>
-          <p className="text-sm text-purple-600 mt-2">+5.1% จากช่วงก่อน</p>
+          <p className="text-sm text-gray-500 mt-2">ต่อรายการ</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
@@ -207,12 +330,12 @@ const Reports: React.FC = () => {
             <div>
               <p className="text-sm font-medium text-gray-600">สินค้าใกล้หมด</p>
               <p className="text-2xl font-bold text-gray-900">
-                {inventoryReport?.lowStockProducts?.length || 0}
+                {inventoryReport.lowStockProducts.length}
               </p>
             </div>
             <AlertTriangle className="h-8 w-8 text-red-600" />
           </div>
-          <p className="text-sm text-red-600 mt-2">ต้องการความสนใจ</p>
+          <p className="text-sm text-red-600 mt-2">สต็อก ≤ 5 ชิ้น</p>
         </div>
       </div>
 
@@ -221,13 +344,14 @@ const Reports: React.FC = () => {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">ยอดขายรายวัน</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={dailySalesData}>
+            <BarChart data={salesReport.dailySales}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip />
               <Legend />
               <Bar dataKey="sales" fill="#3B82F6" name="ยอดขาย (฿)" />
+              <Bar dataKey="orders" fill="#10B981" name="จำนวนรายการ" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -238,7 +362,7 @@ const Reports: React.FC = () => {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={categoryData}
+                data={getCategoryData()}
                 cx="50%"
                 cy="50%"
                 labelLine={false}
@@ -247,7 +371,7 @@ const Reports: React.FC = () => {
                 fill="#8884d8"
                 dataKey="value"
               >
-                {categoryData.map((entry, index) => (
+                {getCategoryData().map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
@@ -264,26 +388,26 @@ const Reports: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {inventoryReport?.totalProducts || 0}
+              {inventoryReport.totalProducts}
             </div>
             <div className="text-sm text-gray-600">สินค้าทั้งหมด</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              ฿{inventoryReport?.totalValue?.toLocaleString() || '0'}
+              ฿{inventoryReport.totalValue.toLocaleString()}
             </div>
             <div className="text-sm text-gray-600">มูลค่าสินค้าคงคลัง</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-red-600">
-              {inventoryReport?.outOfStockProducts?.length || 0}
+              {inventoryReport.outOfStockProducts.length}
             </div>
             <div className="text-sm text-gray-600">สินค้าหมด</div>
           </div>
         </div>
 
         {/* Low Stock Products */}
-        {inventoryReport?.lowStockProducts?.length > 0 && (
+        {inventoryReport.lowStockProducts.length > 0 && (
           <div>
             <h4 className="font-medium text-gray-900 mb-3">สินค้าใกล้หมด</h4>
             <div className="overflow-x-auto">
@@ -305,7 +429,7 @@ const Reports: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {inventoryReport.lowStockProducts.map((product: any) => (
+                  {inventoryReport.lowStockProducts.map((product: Product) => (
                     <tr key={product.id}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -334,6 +458,56 @@ const Reports: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {product.supplier}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        
+        {/* Top Selling Products */}
+        {salesReport.topProducts.length > 0 && (
+          <div className="mt-6">
+            <h4 className="font-medium text-gray-900 mb-3">สินค้าขายดี (ช่วงเวลาที่เลือก)</h4>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      สินค้า
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      จำนวนขาย
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      รายได้
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {salesReport.topProducts.slice(0, 5).map((item: any, index: number) => (
+                    <tr key={item.productId}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                            <span className="text-sm font-medium text-blue-600">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {item.name}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-green-600">
+                          {item.quantity} ชิ้น
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        ฿{item.revenue.toLocaleString()}
                       </td>
                     </tr>
                   ))}

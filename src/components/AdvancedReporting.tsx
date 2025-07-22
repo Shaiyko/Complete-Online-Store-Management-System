@@ -60,6 +60,8 @@ interface PeakHour {
 }
 
 const AdvancedReporting: React.FC = () => {
+  const [salesData, setSalesData] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
@@ -67,8 +69,8 @@ const AdvancedReporting: React.FC = () => {
   });
   
   const [reportData, setReportData] = useState({
-    employeeStats: [] as EmployeeStats[],
-    salesData: [] as SalesData[],
+    employeeStats: [] as any[],
+    dailySalesData: [] as SalesData[],
     bestSellingItems: [] as BestSellingItem[],
     peakHours: [] as PeakHour[],
     summary: {
@@ -83,68 +85,6 @@ const AdvancedReporting: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Mock data for demonstration
-  const mockEmployeeStats: EmployeeStats[] = [
-    {
-      id: '1',
-      name: 'John Owner',
-      role: 'owner',
-      workingHours: 40,
-      totalSales: 250000,
-      transactionCount: 45,
-      averageTransaction: 5556
-    },
-    {
-      id: '2',
-      name: 'Jane Admin',
-      role: 'admin',
-      workingHours: 35,
-      totalSales: 180000,
-      transactionCount: 32,
-      averageTransaction: 5625
-    },
-    {
-      id: '3',
-      name: 'Mike Cashier',
-      role: 'cashier',
-      workingHours: 42,
-      totalSales: 320000,
-      transactionCount: 68,
-      averageTransaction: 4706
-    }
-  ];
-
-  const mockSalesData: SalesData[] = [
-    { date: '2024-01-15', sales: 45000, transactions: 12, employee: 'Mike Cashier' },
-    { date: '2024-01-16', sales: 52000, transactions: 15, employee: 'Jane Admin' },
-    { date: '2024-01-17', sales: 38000, transactions: 10, employee: 'Mike Cashier' },
-    { date: '2024-01-18', sales: 65000, transactions: 18, employee: 'John Owner' },
-    { date: '2024-01-19', sales: 48000, transactions: 14, employee: 'Mike Cashier' },
-    { date: '2024-01-20', sales: 72000, transactions: 20, employee: 'Jane Admin' },
-    { date: '2024-01-21', sales: 55000, transactions: 16, employee: 'Mike Cashier' }
-  ];
-
-  const mockBestSellingItems: BestSellingItem[] = [
-    { productId: '1', productName: 'MacBook Pro 16"', quantitySold: 8, revenue: 719200, category: 'electronics' },
-    { productId: '2', productName: 'iPhone 15 Pro', quantitySold: 15, revenue: 598500, category: 'electronics' },
-    { productId: '5', productName: 'Coffee Beans', quantitySold: 45, revenue: 20250, category: 'food' },
-    { productId: '4', productName: 'Gaming Mouse', quantitySold: 12, revenue: 19080, category: 'electronics' },
-    { productId: '3', productName: 'Wireless Headphones', quantitySold: 6, revenue: 17940, category: 'electronics' }
-  ];
-
-  const mockPeakHours: PeakHour[] = [
-    { hour: '09:00', sales: 25000, transactions: 8 },
-    { hour: '10:00', sales: 35000, transactions: 12 },
-    { hour: '11:00', sales: 45000, transactions: 15 },
-    { hour: '12:00', sales: 55000, transactions: 18 },
-    { hour: '13:00', sales: 48000, transactions: 16 },
-    { hour: '14:00', sales: 52000, transactions: 17 },
-    { hour: '15:00', sales: 42000, transactions: 14 },
-    { hour: '16:00', sales: 38000, transactions: 12 },
-    { hour: '17:00', sales: 32000, transactions: 10 },
-    { hour: '18:00', sales: 28000, transactions: 9 }
-  ];
-
   useEffect(() => {
     fetchReportData();
   }, [dateRange]);
@@ -152,25 +92,139 @@ const AdvancedReporting: React.FC = () => {
   const fetchReportData = async () => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Fetch real data
+      const [salesResponse, productsResponse] = await Promise.all([
+        apiService.getSales(),
+        apiService.getProducts()
+      ]);
       
-      const totalRevenue = mockSalesData.reduce((sum, day) => sum + day.sales, 0);
-      const totalTransactions = mockSalesData.reduce((sum, day) => sum + day.transactions, 0);
+      const productList = Array.isArray(productsResponse) 
+        ? productsResponse 
+        : productsResponse.products || [];
+      setProducts(productList);
+      
+      // Filter sales by date range
+      const filteredSales = salesResponse.filter((sale: any) => {
+        const saleDate = new Date(sale.createdAt);
+        const startDate = new Date(dateRange.startDate);
+        const endDate = new Date(dateRange.endDate);
+        return saleDate >= startDate && saleDate <= endDate;
+      });
+      
+      setSalesData(filteredSales);
+      
+      // Calculate employee stats from real data
+      const employeeStatsMap = new Map();
+      filteredSales.forEach((sale: any) => {
+        const cashierId = sale.cashierId;
+        const cashierName = sale.cashierName;
+        
+        if (!employeeStatsMap.has(cashierId)) {
+          employeeStatsMap.set(cashierId, {
+            id: cashierId,
+            name: cashierName,
+            role: 'cashier', // Default role
+            workingHours: 8, // Default hours
+            totalSales: 0,
+            transactionCount: 0,
+            averageTransaction: 0
+          });
+        }
+        
+        const empStats = employeeStatsMap.get(cashierId);
+        empStats.totalSales += sale.total;
+        empStats.transactionCount += 1;
+        empStats.averageTransaction = empStats.totalSales / empStats.transactionCount;
+      });
+      
+      const employeeStats = Array.from(employeeStatsMap.values());
+      
+      // Calculate daily sales data
+      const dailySalesMap = new Map();
+      filteredSales.forEach((sale: any) => {
+        const date = new Date(sale.createdAt).toISOString().split('T')[0];
+        if (!dailySalesMap.has(date)) {
+          dailySalesMap.set(date, {
+            date,
+            sales: 0,
+            transactions: 0,
+            employee: sale.cashierName
+          });
+        }
+        const dayData = dailySalesMap.get(date);
+        dayData.sales += sale.total;
+        dayData.transactions += 1;
+      });
+      
+      const dailySalesData = Array.from(dailySalesMap.values()).sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+      
+      // Calculate best selling items
+      const productSalesMap = new Map();
+      filteredSales.forEach((sale: any) => {
+        sale.items.forEach((item: any) => {
+          if (!productSalesMap.has(item.productId)) {
+            const product = productList.find((p: any) => p.id === item.productId);
+            productSalesMap.set(item.productId, {
+              productId: item.productId,
+              productName: item.name,
+              quantitySold: 0,
+              revenue: 0,
+              category: product?.category || 'unknown'
+            });
+          }
+          const productData = productSalesMap.get(item.productId);
+          productData.quantitySold += item.quantity;
+          productData.revenue += item.price * item.quantity;
+        });
+      });
+      
+      const bestSellingItems = Array.from(productSalesMap.values())
+        .sort((a, b) => b.revenue - a.revenue);
+      
+      // Calculate peak hours from real data
+      const hourlyStatsMap = new Map();
+      filteredSales.forEach((sale: any) => {
+        const hour = new Date(sale.createdAt).getHours();
+        const hourKey = `${hour.toString().padStart(2, '0')}:00`;
+        
+        if (!hourlyStatsMap.has(hourKey)) {
+          hourlyStatsMap.set(hourKey, {
+            hour: hourKey,
+            sales: 0,
+            transactions: 0
+          });
+        }
+        
+        const hourData = hourlyStatsMap.get(hourKey);
+        hourData.sales += sale.total;
+        hourData.transactions += 1;
+      });
+      
+      const peakHours = Array.from(hourlyStatsMap.values())
+        .sort((a, b) => parseInt(a.hour) - parseInt(b.hour));
+      
+      // Calculate summary
+      const totalRevenue = filteredSales.reduce((sum: number, sale: any) => sum + sale.total, 0);
+      const totalTransactions = filteredSales.length;
+      const averageTransaction = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+      const topEmployee = employeeStats.reduce((top, emp) => 
+        emp.totalSales > top.totalSales ? emp : top, employeeStats[0] || { name: 'N/A' }
+      );
+      const bestSellingProduct = bestSellingItems[0]?.productName || 'N/A';
       
       setReportData({
-        employeeStats: mockEmployeeStats,
-        salesData: mockSalesData,
-        bestSellingItems: mockBestSellingItems,
-        peakHours: mockPeakHours,
+        employeeStats,
+        dailySalesData,
+        bestSellingItems,
+        peakHours,
         summary: {
           totalRevenue,
           totalTransactions,
-          averageTransaction: totalRevenue / totalTransactions,
-          topEmployee: mockEmployeeStats.reduce((top, emp) => 
-            emp.totalSales > top.totalSales ? emp : top
-          ).name,
-          bestSellingProduct: mockBestSellingItems[0]?.productName || ''
+          averageTransaction,
+          topEmployee: topEmployee.name,
+          bestSellingProduct
         }
       });
     } catch (error) {
@@ -456,7 +510,7 @@ const AdvancedReporting: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Sales Trend</h3>
                   <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={reportData.salesData}>
+                    <BarChart data={reportData.dailySalesData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
