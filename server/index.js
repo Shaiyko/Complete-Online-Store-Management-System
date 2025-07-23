@@ -1,6 +1,4 @@
 const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
@@ -10,7 +8,6 @@ const winston = require('winston');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key');
 
 const app = express();
 
@@ -25,8 +22,6 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
     new winston.transports.Console({
       format: winston.format.simple()
     })
@@ -44,7 +39,7 @@ const limiter = rateLimit({
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-  origin: true,
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
@@ -61,7 +56,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    port: PORT
   });
 });
 
@@ -473,72 +469,6 @@ app.get('/api/products', authenticateToken, (req, res) => {
   });
 });
 
-// Stripe Payment Integration
-app.post('/api/payments/create-intent', authenticateToken, async (req, res) => {
-  try {
-    const { amount, currency = 'thb' } = req.body;
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to smallest currency unit
-      currency,
-      metadata: {
-        cashierId: req.user.id,
-        timestamp: new Date().toISOString()
-      }
-    });
-
-    res.json({
-      clientSecret: paymentIntent.client_secret
-    });
-  } catch (error) {
-    logger.error('Payment intent creation failed:', error);
-    res.status(500).json({ error: 'Payment processing failed' });
-  }
-});
-
-// Stripe Webhook Handler
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
-  const sig = req.headers['stripe-signature'];
-  let event;
-
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
-  } catch (err) {
-    logger.error('Webhook signature verification failed:', err);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
-
-  // Handle the event
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      const paymentIntent = event.data.object;
-      logger.info('Payment succeeded:', paymentIntent.id);
-      
-      // Broadcast payment success
-      io.emit('payment-success', {
-        paymentIntentId: paymentIntent.id,
-        amount: paymentIntent.amount / 100
-      });
-      break;
-    
-    case 'payment_intent.payment_failed':
-      const failedPayment = event.data.object;
-      logger.error('Payment failed:', failedPayment.id);
-      
-      // Broadcast payment failure
-      io.emit('payment-failed', {
-        paymentIntentId: failedPayment.id,
-        error: failedPayment.last_payment_error
-      });
-      break;
-    
-    default:
-      logger.info(`Unhandled event type ${event.type}`);
-  }
-
-  res.json({ received: true });
-});
-
 // Enhanced Sales Route with Real-time Updates
 app.post('/api/sales', authenticateToken, (req, res) => {
   const { items, subtotal, discount, total, paymentMethod, memberId, memberPhone, pointsUsed, cashReceived, change } = req.body;
@@ -580,7 +510,6 @@ app.post('/api/sales', authenticateToken, (req, res) => {
         createdAt: new Date()
       });
 
-      // Broadcast inventory update
       logger.info(`Stock updated for product ${item.productId}: ${products[productIndex].stock}`);
       
       // Check for low stock alert
@@ -950,13 +879,51 @@ app.use('*', (req, res) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    logger.info('Process terminated');
-  });
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  process.exit(0);
 });
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`Server running on port ${PORT}`);
-  console.log(`🚀 Server running on port ${PORT}`);
+  logger.info(`🚀 Backend Server running on port ${PORT}`);
+  console.log(`🚀 Backend Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    logger.error(`Port ${PORT} is already in use`);
+    console.error(`❌ Port ${PORT} is already in use`);
+  } else {
+    logger.error('Server error:', error);
+    console.error('❌ Server error:', error);
+  }
+});
+
+server.on('close', () => {
+  logger.info('Server closed');
+  console.log('🔴 Server closed');
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught Exception:', error);
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('❌ Unhandled Rejection:', reason);
+});
+
+// Export for testing
+module.exports = { app, server };
+
+    logger.info('Process terminated');
+  });
 });

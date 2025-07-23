@@ -30,11 +30,10 @@ class ApiService {
     let retryCount = 0;
 
     while (retryCount < maxRetries) {
-    try {
+      try {
         const response = await fetch(url, { 
           ...options, 
-          headers,
-          timeout: 10000 // 10 second timeout
+          headers
         });
       
         // Check if response has content before parsing JSON
