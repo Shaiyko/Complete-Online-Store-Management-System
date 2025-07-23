@@ -14,13 +14,16 @@ import {
   LogOut,
   Store,
   User,
-  Truck
+  Truck,
+  Menu,
+  X
 } from 'lucide-react';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   const handleLogout = () => {
     logout();
@@ -41,18 +44,55 @@ const Layout: React.FC = () => {
     item.roles.includes(user?.role || '')
   );
 
+  // Close mobile menu when route changes
+  React.useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg">
+    <div className="min-h-screen bg-gray-50 relative">
+      {/* Mobile Header - Only visible on mobile */}
+      <div className="lg:hidden bg-white shadow-md border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <Store className="h-6 w-6 text-blue-600" />
+          <span className="text-lg font-bold text-gray-900">StoreManager</span>
+        </div>
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+        >
+          {isMobileMenuOpen ? (
+            <X className="h-6 w-6" />
+          ) : (
+            <Menu className="h-6 w-6" />
+          )}
+        </button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 z-40 bg-black bg-opacity-50"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar - Responsive */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out
+        lg:translate-x-0 lg:static lg:inset-0
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Desktop Header - Hidden on mobile */}
         <div className="flex h-16 items-center justify-center border-b border-gray-200">
           <div className="flex items-center space-x-2">
             <Store className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">StoreManager</span>
+            <span className="text-xl font-bold text-gray-900 hidden lg:block">StoreManager</span>
           </div>
         </div>
         
-        <nav className="mt-6 px-4">
+        {/* Navigation Menu */}
+        <nav className="mt-6 px-4 flex-1 overflow-y-auto">
           <div className="space-y-2">
             {filteredNavigation.map((item) => {
               const Icon = item.icon;
@@ -62,7 +102,8 @@ const Layout: React.FC = () => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center space-x-3 rounded-lg px-3 py-3 text-sm font-medium transition-colors touch-target ${
                     isActive
                       ? 'bg-blue-100 text-blue-700'
                       : 'text-gray-700 hover:bg-gray-100'
@@ -76,7 +117,7 @@ const Layout: React.FC = () => {
           </div>
         </nav>
 
-        {/* User info and logout */}
+        {/* User info and logout - Responsive */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 bg-white p-4">
           <div className="flex items-center space-x-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
@@ -92,7 +133,7 @@ const Layout: React.FC = () => {
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center h-8 w-8 text-gray-400 hover:text-red-600 transition-colors"
+              className="flex items-center justify-center h-8 w-8 text-gray-400 hover:text-red-600 transition-colors touch-target"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -100,17 +141,18 @@ const Layout: React.FC = () => {
         </div>
       </div>
 
-      {/* Main content */}
-      <div className="pl-64">
-        {/* Top bar with notifications */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
+      {/* Main content - Responsive */}
+      <div className="lg:pl-64">
+        {/* Top bar with notifications - Responsive */}
+        <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4 mt-16 lg:mt-0">
           <div className="flex justify-end">
             <ConnectionStatus />
             <RealTimeNotifications />
           </div>
         </div>
         
-        <main className="p-6">
+        {/* Main content area - Responsive padding */}
+        <main className="p-4 lg:p-6 container-mobile">
           <Outlet />
         </main>
       </div>

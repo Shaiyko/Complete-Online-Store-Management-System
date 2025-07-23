@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, X, Flashlight, FlashlightOff, RotateCcw } from 'lucide-react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 interface QRScannerProps {
   onScan: (data: string) => void;
@@ -8,7 +9,12 @@ interface QRScannerProps {
   title?: string;
 }
 
-const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = "Scan QR Code" }) => {
+const QRScanner: React.FC<QRScannerProps> = ({ 
+  onScan, 
+  onClose, 
+  isOpen, 
+  title = "Scan QR Code" 
+}) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
@@ -17,7 +23,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
   const [selectedCamera, setSelectedCamera] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const scannerRef = useRef<any>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,6 +38,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
   const initializeCamera = async () => {
     try {
       setError('');
+      setHasPermission(null);
       
       // Get available cameras
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -41,7 +48,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
       // Select back camera by default on mobile
       const backCamera = videoDevices.find(device => 
         device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('rear')
+        device.label.toLowerCase().includes('rear') ||
+        device.label.toLowerCase().includes('environment')
       );
       const cameraId = selectedCamera || backCamera?.deviceId || videoDevices[0]?.deviceId;
       
@@ -49,11 +57,12 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
         setSelectedCamera(cameraId);
         await startCamera(cameraId);
       } else {
-        setError('No cameras found');
+        setError('ไม่พบกล้อง');
+        setHasPermission(false);
       }
     } catch (err) {
       console.error('Camera initialization error:', err);
-      setError('Failed to access camera. Please check permissions.');
+      setError('ไม่สามารถเข้าถึงกล้องได้ กรุณาตรวจสอบสิทธิ์การใช้งาน');
       setHasPermission(false);
     }
   };
@@ -69,8 +78,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
         video: {
           deviceId: deviceId ? { exact: deviceId } : undefined,
           facingMode: deviceId ? undefined : { ideal: 'environment' },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 }
         }
       };
 
@@ -85,7 +94,7 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
       }
     } catch (err) {
       console.error('Camera start error:', err);
-      setError('Failed to start camera');
+      setError('ไม่สามารถเริ่มกล้องได้: ' + err.message);
       setHasPermission(false);
     }
   };
@@ -96,30 +105,29 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
     try {
       setIsScanning(true);
       
-      // Dynamic import for QR Scanner
-      const QrScanner = (await import('qr-scanner')).default;
+      // Initialize ZXing reader
+      const reader = new BrowserMultiFormatReader();
+      readerRef.current = reader;
       
-      const scanner = new QrScanner(
+      // Start continuous scanning
+      const result = await reader.decodeFromVideoDevice(
+        selectedCamera,
         videoRef.current,
-        (result: any) => {
-          const data = typeof result === 'string' ? result : result.data;
-          if (data) {
-            onScan(data);
+        (result, error) => {
+          if (result) {
+            console.log('QR Code scanned:', result.getText());
+            onScan(result.getText());
             cleanup();
           }
-        },
-        {
-          returnDetailedScanResult: true,
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
+          if (error) {
+            console.debug('Scan error:', error);
+          }
         }
       );
-
-      scannerRef.current = scanner;
-      await scanner.start();
+      
     } catch (err) {
       console.error('Scanner start error:', err);
-      setError('Failed to start QR scanner');
+      setError('ไม่สามารถเริ่มการสแกนได้: ' + err.message);
       setIsScanning(false);
     }
   };
@@ -150,9 +158,9 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
   };
 
   const cleanup = () => {
-    if (scannerRef.current) {
-      scannerRef.current.destroy();
-      scannerRef.current = null;
+    if (readerRef.current) {
+      readerRef.current.reset();
+      readerRef.current = null;
     }
     
     if (streamRef.current) {
@@ -169,48 +177,54 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
       <div className="relative w-full h-full max-w-md max-h-screen bg-black">
-        {/* Header */}
+        {/* Header - Responsive */}
         <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
           <div className="flex items-center justify-between text-white">
-            <h2 className="text-lg font-semibold">{title}</h2>
+            <h2 className="text-lg font-semibold text-responsive">{title}</h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors touch-target"
             >
               <X className="h-6 w-6" />
             </button>
           </div>
         </div>
 
-        {/* Camera View */}
+        {/* Camera View - Responsive */}
         <div className="relative w-full h-full flex items-center justify-center">
           {hasPermission === null && (
-            <div className="text-white text-center">
+            <div className="text-white text-center p-4">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Requesting camera permission...</p>
+              <p className="text-responsive">กำลังขอสิทธิ์เข้าถึงกล้อง...</p>
             </div>
           )}
 
           {hasPermission === false && (
             <div className="text-white text-center p-4">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="mb-4">Camera access denied</p>
-              <p className="text-sm opacity-75">
-                Please enable camera permissions and refresh the page
+              <p className="mb-4 text-responsive">ไม่สามารถเข้าถึงกล้องได้</p>
+              <p className="text-sm opacity-75 mb-4">
+                กรุณาอนุญาตการใช้งานกล้องและรีเฟรชหน้า
               </p>
+              <button
+                onClick={initializeCamera}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors touch-target"
+              >
+                ลองใหม่
+              </button>
             </div>
           )}
 
           {error && (
             <div className="text-white text-center p-4">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="mb-2">Camera Error</p>
-              <p className="text-sm opacity-75">{error}</p>
+              <p className="mb-2 text-responsive">เกิดข้อผิดพลาดกับกล้อง</p>
+              <p className="text-sm opacity-75 mb-4">{error}</p>
               <button
                 onClick={initializeCamera}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors touch-target"
               >
-                Retry
+                ลองใหม่
               </button>
             </div>
           )}
@@ -219,22 +233,28 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
             <>
               <video
                 ref={videoRef}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover camera-video"
                 playsInline
                 muted
               />
               
-              {/* Scanning Overlay */}
-              <div className="absolute inset-0 flex items-center justify-center">
+              {/* Scanning Overlay - Responsive */}
+              <div className="camera-overlay-responsive">
                 <div className="relative">
-                  <div className="w-64 h-64 border-2 border-white border-opacity-50 rounded-lg">
+                  <div className="scan-frame">
                     <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-lg"></div>
                     <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-lg"></div>
                     <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-lg"></div>
                     <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-lg"></div>
+                    
+                    {/* Scanning line animation */}
+                    <div className="scan-line"></div>
                   </div>
                   <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-white text-center">
-                    <p className="text-sm">Position QR code within the frame</p>
+                    <p className="text-sm text-responsive">วาง QR Code ในกรอบ</p>
+                    <p className="text-xs opacity-75 mt-1">
+                      กล้องจะสแกนอัตโนมัติ
+                    </p>
                   </div>
                 </div>
               </div>
@@ -242,18 +262,19 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
           )}
         </div>
 
-        {/* Controls */}
+        {/* Controls - Responsive */}
         {hasPermission && (
           <div className="absolute bottom-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
             <div className="flex items-center justify-center space-x-6">
               {/* Flash Toggle */}
               <button
                 onClick={toggleFlash}
-                className={`p-3 rounded-full transition-colors ${
+                className={`p-3 rounded-full transition-colors touch-target ${
                   flashEnabled 
                     ? 'bg-yellow-500 text-black' 
                     : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30'
                 }`}
+                title={flashEnabled ? 'ปิดแฟลช' : 'เปิดแฟลช'}
               >
                 {flashEnabled ? (
                   <FlashlightOff className="h-6 w-6" />
@@ -266,7 +287,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isOpen, title = 
               {cameras.length > 1 && (
                 <button
                   onClick={switchCamera}
-                  className="p-3 bg-white bg-opacity-20 text-white rounded-full hover:bg-opacity-30 transition-colors"
+                  className="p-3 bg-white bg-opacity-20 text-white rounded-full hover:bg-opacity-30 transition-colors touch-target"
+                  title="เปลี่ยนกล้อง"
                 >
                   <RotateCcw className="h-6 w-6" />
                 </button>

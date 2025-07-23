@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, X, Flashlight, FlashlightOff, RotateCcw, Scan } from 'lucide-react';
+import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 
 interface BarcodeQRScannerProps {
   onScan: (data: string, type: 'barcode' | 'qr') => void;
@@ -17,48 +18,48 @@ const BarcodeQRScanner: React.FC<BarcodeQRScannerProps> = ({
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [error, setError] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
-  const [flashEnabled, setFlashEnabled] = useState(false);
-  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [cameras, setCameras] = useState<any[]>([]);
   const [selectedCamera, setSelectedCamera] = useState<string>('');
-  const [scanMode, setScanMode] = useState<'auto' | 'barcode' | 'qr'>('auto');
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const qrScannerRef = useRef<any>(null);
-  const barcodeScannerRef = useRef<any>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerElementId = 'qr-reader';
 
   useEffect(() => {
     if (isOpen) {
-      initializeCamera();
+      initializeScanner();
     } else {
       cleanup();
     }
 
     return () => cleanup();
-  }, [isOpen, selectedCamera]);
+  }, [isOpen]);
 
-  const initializeCamera = async () => {
+  const initializeScanner = async () => {
     try {
       setError('');
+      setHasPermission(null);
       
       // Get available cameras
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(device => device.kind === 'videoinput');
-      setCameras(videoDevices);
+      const devices = await Html5Qrcode.getCameras();
+      console.log('Available cameras:', devices);
+      setCameras(devices);
       
+      if (devices.length === 0) {
+        setError('ไม่พบกล้อง');
+        setHasPermission(false);
+        return;
+      }
+
       // Select back camera by default on mobile
-      const backCamera = videoDevices.find(device => 
+      const backCamera = devices.find(device => 
         device.label.toLowerCase().includes('back') || 
         device.label.toLowerCase().includes('rear') ||
         device.label.toLowerCase().includes('environment')
       );
-      const cameraId = selectedCamera || backCamera?.deviceId || videoDevices[0]?.deviceId;
+      const cameraId = selectedCamera || backCamera?.id || devices[0]?.id;
       
       if (cameraId) {
         setSelectedCamera(cameraId);
-        await startCamera(cameraId);
-      } else {
-        setError('ไม่พบกล้อง');
+        await startScanning(cameraId);
       }
     } catch (err) {
       console.error('Camera initialization error:', err);
@@ -67,189 +68,90 @@ const BarcodeQRScanner: React.FC<BarcodeQRScannerProps> = ({
     }
   };
 
-  const startCamera = async (deviceId: string) => {
+  const startScanning = async (cameraId: string) => {
     try {
-      // Stop existing stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-
-      const constraints: MediaStreamConstraints = {
-        video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          facingMode: deviceId ? undefined : { ideal: 'environment' },
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 }
+      setIsScanning(true);
+      setHasPermission(true);
+      
+      // Create scanner instance
+      const scanner = new Html5Qrcode(scannerElementId);
+      scannerRef.current = scanner;
+      
+      // Scanner configuration for better performance
+      const config = {
+        fps: 10, // Frames per second
+        qrbox: { 
+          width: Math.min(250, window.innerWidth * 0.7), 
+          height: Math.min(250, window.innerWidth * 0.7) 
+        },
+        aspectRatio: 1.0,
+        disableFlip: false,
+        videoConstraints: {
+          facingMode: { ideal: "environment" },
+          advanced: [
+            { focusMode: "continuous" },
+            { exposureMode: "continuous" }
+          ]
         }
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
+      // Start scanning
+      await scanner.start(
+        cameraId,
+        config,
+        (decodedText, decodedResult) => {
+          console.log('Scan successful:', decodedText);
+          
+          // Determine if it's QR or barcode based on format
+          const format = decodedResult.result?.format?.formatName?.toLowerCase() || '';
+          const isQR = format.includes('qr') || decodedText.startsWith('{') || decodedText.includes('http');
+          
+          onScan(decodedText, isQR ? 'qr' : 'barcode');
+          cleanup();
+        },
+        (errorMessage) => {
+          // Handle scan errors silently (this fires frequently during scanning)
+          console.debug('Scan error:', errorMessage);
+        }
+      );
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setHasPermission(true);
-        startScanning();
-      }
     } catch (err) {
-      console.error('Camera start error:', err);
-      setError('ไม่สามารถเริ่มกล้องได้');
+      console.error('Scanner start error:', err);
+      setError('ไม่สามารถเริ่มการสแกนได้: ' + err.message);
+      setIsScanning(false);
       setHasPermission(false);
     }
   };
 
-  const startScanning = async () => {
-    if (!videoRef.current || isScanning) return;
-
-    try {
-      setIsScanning(true);
-      
-      // Start QR Code scanning
-      await startQRScanning();
-      
-      // Start Barcode scanning
-      await startBarcodeScanning();
-      
-    } catch (err) {
-      console.error('Scanner start error:', err);
-      setError('ไม่สามารถเริ่มการสแกนได้');
-      setIsScanning(false);
-    }
-  };
-
-  const startQRScanning = async () => {
-    try {
-      const QrScanner = (await import('qr-scanner')).default;
-      
-      const scanner = new QrScanner(
-        videoRef.current!,
-        (result: any) => {
-          const data = typeof result === 'string' ? result : result.data;
-          if (data && (scanMode === 'auto' || scanMode === 'qr')) {
-            onScan(data, 'qr');
-            cleanup();
-          }
-        },
-        {
-          returnDetailedScanResult: true,
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-          maxScansPerSecond: 5,
-        }
-      );
-
-      qrScannerRef.current = scanner;
-      await scanner.start();
-    } catch (err) {
-      console.error('QR Scanner error:', err);
-    }
-  };
-
-  const startBarcodeScanning = async () => {
-    try {
-      const Quagga = (await import('quagga')).default;
-      
-      if (!canvasRef.current || !videoRef.current) return;
-
-      Quagga.init({
-        inputStream: {
-          name: "Live",
-          type: "LiveStream",
-          target: canvasRef.current,
-          constraints: {
-            width: 640,
-            height: 480,
-            facingMode: "environment"
-          }
-        },
-        locator: {
-          patchSize: "medium",
-          halfSample: true
-        },
-        numOfWorkers: 2,
-        frequency: 10,
-        decoder: {
-          readers: [
-            "code_128_reader",
-            "ean_reader",
-            "ean_8_reader",
-            "code_39_reader",
-            "code_39_vin_reader",
-            "codabar_reader",
-            "upc_reader",
-            "upc_e_reader",
-            "i2of5_reader"
-          ]
-        },
-        locate: true
-      }, (err: any) => {
-        if (err) {
-          console.error('Barcode scanner init error:', err);
-          return;
-        }
-        Quagga.start();
-      });
-
-      Quagga.onDetected((data: any) => {
-        if (data.codeResult && (scanMode === 'auto' || scanMode === 'barcode')) {
-          const barcode = data.codeResult.code;
-          if (barcode) {
-            onScan(barcode, 'barcode');
-            cleanup();
-          }
-        }
-      });
-
-      barcodeScannerRef.current = Quagga;
-    } catch (err) {
-      console.error('Barcode scanner error:', err);
-    }
-  };
-
-  const toggleFlash = async () => {
-    if (streamRef.current) {
-      const track = streamRef.current.getVideoTracks()[0];
-      if (track && 'torch' in track.getCapabilities()) {
-        try {
-          await track.applyConstraints({
-            advanced: [{ torch: !flashEnabled } as any]
-          });
-          setFlashEnabled(!flashEnabled);
-        } catch (err) {
-          console.error('Flash toggle error:', err);
-        }
+  const switchCamera = async () => {
+    if (cameras.length <= 1) return;
+    
+    const currentIndex = cameras.findIndex(camera => camera.id === selectedCamera);
+    const nextIndex = (currentIndex + 1) % cameras.length;
+    const nextCamera = cameras[nextIndex];
+    
+    if (nextCamera && scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        setSelectedCamera(nextCamera.id);
+        await startScanning(nextCamera.id);
+      } catch (err) {
+        console.error('Camera switch error:', err);
+        setError('ไม่สามารถเปลี่ยนกล้องได้');
       }
     }
   };
 
-  const switchCamera = () => {
-    const currentIndex = cameras.findIndex(camera => camera.deviceId === selectedCamera);
-    const nextIndex = (currentIndex + 1) % cameras.length;
-    const nextCamera = cameras[nextIndex];
-    if (nextCamera) {
-      setSelectedCamera(nextCamera.deviceId);
-    }
-  };
-
   const cleanup = () => {
-    if (qrScannerRef.current) {
-      qrScannerRef.current.destroy();
-      qrScannerRef.current = null;
+    if (scannerRef.current) {
+      scannerRef.current.stop().then(() => {
+        scannerRef.current?.clear();
+        scannerRef.current = null;
+      }).catch(err => {
+        console.error('Cleanup error:', err);
+      });
     }
-    
-    if (barcodeScannerRef.current) {
-      barcodeScannerRef.current.stop();
-      barcodeScannerRef.current = null;
-    }
-    
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    
     setIsScanning(false);
-    setFlashEnabled(false);
   };
 
   if (!isOpen) return null;
@@ -257,69 +159,52 @@ const BarcodeQRScanner: React.FC<BarcodeQRScannerProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
       <div className="relative w-full h-full max-w-md max-h-screen bg-black">
-        {/* Header */}
+        {/* Header - Responsive */}
         <div className="absolute top-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
           <div className="flex items-center justify-between text-white">
-            <h2 className="text-lg font-semibold">{title}</h2>
+            <h2 className="text-lg font-semibold text-responsive">{title}</h2>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              className="p-2 hover:bg-white hover:bg-opacity-20 rounded-full transition-colors touch-target"
             >
               <X className="h-6 w-6" />
             </button>
           </div>
         </div>
 
-        {/* Scan Mode Selector */}
-        <div className="absolute top-16 left-0 right-0 z-10 p-4">
-          <div className="flex justify-center space-x-2">
-            {[
-              { value: 'auto', label: 'อัตโนมัติ' },
-              { value: 'qr', label: 'QR Code' },
-              { value: 'barcode', label: 'Barcode' }
-            ].map((mode) => (
-              <button
-                key={mode.value}
-                onClick={() => setScanMode(mode.value as any)}
-                className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                  scanMode === mode.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30'
-                }`}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Camera View */}
+        {/* Scanner Content */}
         <div className="relative w-full h-full flex items-center justify-center">
           {hasPermission === null && (
-            <div className="text-white text-center">
+            <div className="text-white text-center p-4">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>กำลังขอสิทธิ์เข้าถึงกล้อง...</p>
+              <p className="text-responsive">กำลังขอสิทธิ์เข้าถึงกล้อง...</p>
             </div>
           )}
 
           {hasPermission === false && (
             <div className="text-white text-center p-4">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="mb-4">ไม่สามารถเข้าถึงกล้องได้</p>
-              <p className="text-sm opacity-75">
+              <p className="mb-4 text-responsive">ไม่สามารถเข้าถึงกล้องได้</p>
+              <p className="text-sm opacity-75 mb-4">
                 กรุณาอนุญาตการใช้งานกล้องและรีเฟรชหน้า
               </p>
+              <button
+                onClick={initializeScanner}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors touch-target"
+              >
+                ลองใหม่
+              </button>
             </div>
           )}
 
           {error && (
             <div className="text-white text-center p-4">
               <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p className="mb-2">เกิดข้อผิดพลาดกับกล้อง</p>
-              <p className="text-sm opacity-75">{error}</p>
+              <p className="mb-2 text-responsive">เกิดข้อผิดพลาดกับกล้อง</p>
+              <p className="text-sm opacity-75 mb-4">{error}</p>
               <button
-                onClick={initializeCamera}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                onClick={initializeScanner}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors touch-target"
               >
                 ลองใหม่
               </button>
@@ -328,68 +213,38 @@ const BarcodeQRScanner: React.FC<BarcodeQRScannerProps> = ({
 
           {hasPermission && (
             <>
-              <video
-                ref={videoRef}
-                className="w-full h-full object-cover"
-                playsInline
-                muted
+              {/* Scanner Element */}
+              <div 
+                id={scannerElementId} 
+                className="w-full h-full flex items-center justify-center"
+                style={{ 
+                  maxWidth: '100%', 
+                  maxHeight: '100%',
+                  background: 'transparent'
+                }}
               />
               
-              {/* Canvas for barcode scanning */}
-              <canvas
-                ref={canvasRef}
-                className="absolute inset-0 w-full h-full opacity-0"
-              />
-              
-              {/* Scanning Overlay */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative">
-                  <div className="w-64 h-64 border-2 border-white border-opacity-50 rounded-lg">
-                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-lg"></div>
-                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-lg"></div>
-                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-lg"></div>
-                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-lg"></div>
-                    
-                    {/* Scanning line animation */}
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-pulse"></div>
-                  </div>
-                  <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-white text-center">
-                    <p className="text-sm">วางบาร์โค้ดหรือ QR Code ในกรอบ</p>
-                    <p className="text-xs opacity-75 mt-1">
-                      โหมด: {scanMode === 'auto' ? 'อัตโนมัติ' : scanMode === 'qr' ? 'QR Code' : 'Barcode'}
-                    </p>
-                  </div>
-                </div>
+              {/* Scanning Instructions */}
+              <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 text-white text-center px-4">
+                <p className="text-sm text-responsive">วางบาร์โค้ดหรือ QR Code ในกรอบ</p>
+                <p className="text-xs opacity-75 mt-1">
+                  กล้องจะสแกนอัตโนมัติ
+                </p>
               </div>
             </>
           )}
         </div>
 
-        {/* Controls */}
+        {/* Controls - Responsive */}
         {hasPermission && (
           <div className="absolute bottom-0 left-0 right-0 z-10 bg-black bg-opacity-50 p-4">
             <div className="flex items-center justify-center space-x-6">
-              {/* Flash Toggle */}
-              <button
-                onClick={toggleFlash}
-                className={`p-3 rounded-full transition-colors ${
-                  flashEnabled 
-                    ? 'bg-yellow-500 text-black' 
-                    : 'bg-white bg-opacity-20 text-white hover:bg-opacity-30'
-                }`}
-              >
-                {flashEnabled ? (
-                  <FlashlightOff className="h-6 w-6" />
-                ) : (
-                  <Flashlight className="h-6 w-6" />
-                )}
-              </button>
-
               {/* Camera Switch */}
               {cameras.length > 1 && (
                 <button
                   onClick={switchCamera}
-                  className="p-3 bg-white bg-opacity-20 text-white rounded-full hover:bg-opacity-30 transition-colors"
+                  className="p-3 bg-white bg-opacity-20 text-white rounded-full hover:bg-opacity-30 transition-colors touch-target"
+                  title="เปลี่ยนกล้อง"
                 >
                   <RotateCcw className="h-6 w-6" />
                 </button>
@@ -398,19 +253,14 @@ const BarcodeQRScanner: React.FC<BarcodeQRScannerProps> = ({
               {/* Manual Scan Button */}
               <button
                 onClick={() => {
-                  // Force a scan attempt
-                  if (videoRef.current && canvasRef.current) {
-                    const canvas = canvasRef.current;
-                    const video = videoRef.current;
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      canvas.width = video.videoWidth;
-                      canvas.height = video.videoHeight;
-                      ctx.drawImage(video, 0, 0);
-                    }
+                  // Force a scan attempt by restarting scanner
+                  if (scannerRef.current && selectedCamera) {
+                    cleanup();
+                    setTimeout(() => startScanning(selectedCamera), 100);
                   }
                 }}
-                className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
+                className="p-3 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors touch-target"
+                title="สแกนใหม่"
               >
                 <Scan className="h-6 w-6" />
               </button>

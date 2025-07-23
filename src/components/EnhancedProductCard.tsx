@@ -56,13 +56,13 @@ const EnhancedProductCard: React.FC<EnhancedProductCardProps> = ({
 
   if (compact) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-4 hover:shadow-lg transition-all duration-200 border border-gray-200">
+      <div className="card-responsive p-4 mobile-optimized">
         <div className="flex items-center space-x-3">
           <div className="relative">
             <img
               src={product.imageUrl}
               alt={product.name}
-              className="w-16 h-16 object-cover rounded-lg"
+              className="w-16 h-16 object-cover rounded-lg lazy-image"
               onLoad={() => setImageLoaded(true)}
             />
             {!imageLoaded && (
@@ -71,8 +71,8 @@ const EnhancedProductCard: React.FC<EnhancedProductCardProps> = ({
           </div>
           
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-gray-900 truncate">{product.name}</h3>
-            <p className="text-lg font-bold text-blue-600">
+            <h3 className="font-semibold text-gray-900 truncate text-responsive">{product.name}</h3>
+            <p className="text-lg font-bold text-blue-600 text-responsive">
               ฿{product.price.toLocaleString()}
             </p>
             <div className="flex items-center space-x-2">
@@ -87,7 +87,7 @@ const EnhancedProductCard: React.FC<EnhancedProductCardProps> = ({
             <button
               onClick={() => onAddToCart?.(product)}
               disabled={product.stock === 0}
-              className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors touch-target"
             >
               <ShoppingCart className="h-4 w-4" />
             </button>
@@ -98,13 +98,13 @@ const EnhancedProductCard: React.FC<EnhancedProductCardProps> = ({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 border border-gray-200 group">
+    <div className="card-responsive group mobile-optimized">
       {/* Image Section */}
       <div className="relative">
         <img
           src={product.imageUrl}
           alt={product.name}
-          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300 lazy-image"
           onLoad={() => setImageLoaded(true)}
         />
         {!imageLoaded && (
@@ -116,13 +116,13 @@ const EnhancedProductCard: React.FC<EnhancedProductCardProps> = ({
           <div className="flex space-x-2">
             <button
               onClick={() => onViewDetails?.(product)}
-              className="p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
+              className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors touch-target"
             >
               <Eye className="h-5 w-5 text-gray-700" />
             </button>
             <button
               onClick={() => setIsLiked(!isLiked)}
-              className={`p-2 rounded-full shadow-lg transition-colors ${
+              className={`p-3 rounded-full shadow-lg transition-colors touch-target ${
                 isLiked ? 'bg-red-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100'
               }`}
             >

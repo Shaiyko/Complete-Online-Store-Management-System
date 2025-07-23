@@ -518,31 +518,33 @@ const PointOfSale: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left Panel - Products */}
-      <div className="flex-1 flex flex-col">
-        <div className="p-4 border-b">
-          <h1 className="text-xl font-bold text-gray-900 mb-4">Point of Sale</h1>
-          <div className="relative">
+      <div className="flex-1 flex flex-col order-2 lg:order-1">
+        <div className="p-4 border-b bg-white">
+          <h1 className="text-xl font-bold text-gray-900 mb-4 desktop-only">Point of Sale</h1>
+          <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center">
+            <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
               placeholder="Search products or scan barcode..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 form-input"
             />
           </div>
           <button
             onClick={() => setShowScanner(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            className="bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2 touch-target w-full sm:w-auto"
           >
             <QrCode className="h-5 w-5" />
-            <span className="hidden sm:inline">สแกน</span>
+            <span>สแกน</span>
           </button>
+          </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500">
@@ -550,7 +552,7 @@ const PointOfSale: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid-responsive">
               {filteredProducts.map((product) => (
                 <EnhancedProductCard
                   key={product.id}
@@ -564,9 +566,9 @@ const PointOfSale: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Panel - Cart */}
-      <div className="w-96 bg-white border-l flex flex-col">
-        <div className="p-4 border-b">
+      {/* Right Panel - Cart - Responsive */}
+      <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l flex flex-col order-1 lg:order-2 max-h-screen lg:h-screen">
+        <div className="p-4 border-b bg-white">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Cart</h2>
             <ShoppingCart className="h-6 w-6 text-gray-600" />
@@ -583,7 +585,7 @@ const PointOfSale: React.FC = () => {
                   </div>
                   <button
                     onClick={() => setSelectedMember(null)}
-                    className="text-green-600 hover:text-green-800"
+                    className="text-green-600 hover:text-green-800 touch-target"
                   >
                     ×
                   </button>
@@ -600,7 +602,7 @@ const PointOfSale: React.FC = () => {
                       max={Math.min(selectedMember.points, total)}
                       value={pointsToUse}
                       onChange={(e) => setPointsToUse(Number(e.target.value))}
-                      className="w-full px-2 py-1 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 form-input"
                     />
                   </div>
                 )}
@@ -608,7 +610,7 @@ const PointOfSale: React.FC = () => {
             ) : (
               <button
                 onClick={() => setShowMemberModal(true)}
-                className="w-full bg-blue-100 text-blue-700 py-2 px-4 rounded-md hover:bg-blue-200 transition-colors flex items-center justify-center space-x-2"
+                className="w-full bg-blue-100 text-blue-700 py-3 px-4 rounded-md hover:bg-blue-200 transition-colors flex items-center justify-center space-x-2 touch-target"
               >
                 <User className="h-5 w-5" />
                 <span>Add Member</span>
@@ -627,12 +629,12 @@ const PointOfSale: React.FC = () => {
               max={subtotal}
               value={discount}
               onChange={(e) => setDiscount(Number(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 form-input"
             />
           </div>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
           {cart.length === 0 ? (
             <div className="text-center py-12">
               <ShoppingCart className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -641,28 +643,28 @@ const PointOfSale: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {cart.map((item) => (
-                <div key={item.product.id} className="bg-gray-50 p-3 rounded-md">
+                <div key={item.product.id} className="bg-white p-3 rounded-md shadow-sm">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-medium text-sm">{item.product.name}</h4>
                     <button
                       onClick={() => updateQuantity(item.product.id, 0)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-500 hover:text-red-700 touch-target"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                        className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
+                        className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 touch-target"
                       >
                         <Minus className="h-4 w-4" />
                       </button>
-                      <span className="w-8 text-center">{item.quantity}</span>
+                      <span className="w-10 text-center font-medium">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
-                        className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
+                        className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300 touch-target"
                       >
                         <Plus className="h-4 w-4" />
                       </button>
@@ -678,7 +680,7 @@ const PointOfSale: React.FC = () => {
         </div>
         
         {cart.length > 0 && (
-          <div className="border-t p-4">
+          <div className="border-t p-4 bg-white">
             <div className="space-y-2 mb-4">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
@@ -703,7 +705,7 @@ const PointOfSale: React.FC = () => {
             </div>
             <button
               onClick={() => setShowPaymentModal(true)}
-              className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 transition-colors font-semibold"
+              className="w-full bg-green-600 text-white py-4 px-4 rounded-md hover:bg-green-700 transition-colors font-semibold touch-target"
             >
               Proceed to Payment
             </button>
