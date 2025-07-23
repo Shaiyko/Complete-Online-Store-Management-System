@@ -923,3 +923,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Export for testing
 module.exports = { app, server };
+
+process.on('exit', () => {
+    logger.info('Process terminated');
+});
